@@ -114,15 +114,15 @@
     }
     preloadAssets();
 
-    // CẤU HÌNH BẢN ĐỒ
+    // CẤU HÌNH BẢN ĐỒ: ĐẨY ĐẢO NGƯỜI CHƠI LÊN 2 Ô, BIỂN CÒN 14 Ô
     const C = 16; 
     const W = 36; 
     const ISLAND_H = 20; 
-    const SEA_H = 16; 
-    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 56
+    const SEA_H = 14; 
+    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 20 + 14 + 20 = 54
     const ENEMY_Y_START = 0; 
     const SEA_Y_START = 20; 
-    const PLAYER_Y_START = 36; 
+    const PLAYER_Y_START = 34; 
     let fog = Array(W).fill().map(() => Array(TOTAL_H).fill(true));
     
     const UNIT_STATS = { CYCLOP: { buildTime: 30, maxCap: 1 }, TROLL_JAVELIN: { buildTime: 10, maxCap: 3 } };
@@ -137,8 +137,8 @@
         CYCLOP_CAVE:  { w: 4, h: 2, hp: 3000, reload: 0, atkRange: 0 } 
     };
 
-    // --- CAMERA & ZOOM ĐÚNG 52 Ô DỌC ---
-    const MAX_VISIBLE_V_CELLS = 52;
+    // ZOOM BAO TRỌN 55 Ô DỌC ĐỂ KHÔNG BỊ THANH UI CHE KHUẤT CHÂN ĐẢO
+    const MAX_VISIBLE_V_CELLS = 55;
     let camX = (W * C) / 2; 
     let camY = (TOTAL_H * C) / 2; 
     let defaultZoom = 0.8;
@@ -161,7 +161,7 @@
     resizeCanvas();
     camZoom = defaultZoom;
 
-    // --- PINCH-TO-ZOOM (2 NGÓN TAY TRÊN MOBILE) ---
+    // PINCH-TO-ZOOM (2 NGÓN MOBILE)
     let touchStartDist = 0;
     let touchStartZoom = 1;
 
@@ -192,7 +192,7 @@
         }
     });
 
-    // --- ZOOM CUỘN CHUỘT (DESKTOP) ---
+    // ZOOM LĂN CHUỘT
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const zoomFactor = 1.1;
@@ -376,6 +376,7 @@
         }
     }
 
+    // ĐỘI HÌNH PHE TA: ĐẨY TOÀN BỘ LÊN 2 Ô (PLAYER_Y_START = 34)
     function startPrepPhase() {
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
@@ -383,22 +384,22 @@
         gamePhase = 'PREP'; 
         prepTimer = 30;
 
-        buildings.push(new Building(15, 47, 'MAGE_TOWER', 0)); 
+        buildings.push(new Building(15, 45, 'MAGE_TOWER', 0)); 
         
         let aamX = [4, 8, 12, 16, 20, 24, 28]; 
-        aamX.forEach(x => buildings.push(new Building(x, 38, 'BALLISTA', 0))); 
+        aamX.forEach(x => buildings.push(new Building(x, 36, 'BALLISTA', 0))); 
         
         let ciwsX = [5, 10, 15, 20, 25]; 
-        ciwsX.forEach(x => buildings.push(new Building(x, 41, 'ARCHER_TOWER', 0))); 
+        ciwsX.forEach(x => buildings.push(new Building(x, 39, 'ARCHER_TOWER', 0))); 
         
         let bunkerX = [6, 12, 18, 24]; 
-        bunkerX.forEach(x => buildings.push(new Building(x, 44, 'WATCHTOWER', 0)));
+        bunkerX.forEach(x => buildings.push(new Building(x, 42, 'WATCHTOWER', 0)));
         
-        buildings.push(new Building(8, 49, 'TREBUCHET', 0)); 
-        buildings.push(new Building(17, 50, 'TREBUCHET', 0)); 
-        buildings.push(new Building(26, 49, 'TREBUCHET', 0)); 
-        buildings.push(new Building(7, 52, 'JAVELIN_HUT', 0)); 
-        buildings.push(new Building(25, 52, 'CYCLOP_CAVE', 0)); 
+        buildings.push(new Building(8, 47, 'TREBUCHET', 0)); 
+        buildings.push(new Building(17, 48, 'TREBUCHET', 0)); 
+        buildings.push(new Building(26, 47, 'TREBUCHET', 0)); 
+        buildings.push(new Building(7, 50, 'JAVELIN_HUT', 0)); 
+        buildings.push(new Building(25, 50, 'CYCLOP_CAVE', 0)); 
     }
 
     function startCombatPhase() {
