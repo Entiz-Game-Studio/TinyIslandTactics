@@ -114,12 +114,12 @@
     }
     preloadAssets();
 
-    // CẤU HÌNH BẢN ĐỒ: ĐẢO 20 Ô, BIỂN 16 Ô, TỔNG 56 Ô[cite: 1]
+    // CẤU HÌNH BẢN ĐỒ
     const C = 16; 
     const W = 36; 
     const ISLAND_H = 20; 
     const SEA_H = 16; 
-    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 56[cite: 1]
+    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 56
     const ENEMY_Y_START = 0; 
     const SEA_Y_START = 20; 
     const PLAYER_Y_START = 36; 
@@ -137,7 +137,8 @@
         CYCLOP_CAVE:  { w: 4, h: 2, hp: 3000, reload: 0, atkRange: 0 } 
     };
 
-    let camX = (W * C) / 2; let camY = (TOTAL_H * C) / 2; 
+    let camX = (W * C) / 2; 
+    let camY = (TOTAL_H * C) / 2; 
     let defaultZoom = 0.8;
     let camZoom = defaultZoom; 
 
@@ -245,7 +246,7 @@
                 this.atkRange = 1.6 * C; this.reload = 1.0; this.dmg = 250; this.aoe = 2 * C; this.size = 14; 
             } else if(type === 'TROLL_JAVELIN') { 
                 this.hp = 600; this.maxHp = 600; this.speed = 26; 
-                this.atkRange = 4.5 * C;[cite: 1]
+                this.atkRange = 4.5 * C;
                 this.reload = 0.8; this.dmg = 50; this.aoe = 0; this.size = 7; 
             } 
             this.viewRange = this.atkRange + 3 * C; this.currentReload = 0; this.angle = 0;
@@ -257,7 +258,7 @@
 
     function createGradientCrater(x, y, r) { decals.push({type: 'gradient', x: x, y: y, r: r, life: 8, maxLife: 8}); }
 
-    // BỐ TRÍ TRỤ AI ĐỒNG BỘ 100% VỚI PHE TA: 7 BALLISTA, 5 ARCHER, 4 BUNKER, 3 TREBUCHET, 1 HUT, 1 CAVE[cite: 1]
+    // BỐ TRÍ TRỤ AI
     function setupAIFullDefenses() {
         buildings.push(new Building(15, 2, 'MAGE_TOWER', 1));
         let prepInventoryAI = { 
@@ -272,7 +273,7 @@
         for (const [type, count] of Object.entries(prepInventoryAI)) {
             for(let i = 0; i < count; i++) {
                 let candidateX, candidateY;
-                for (let tries = 0; tries < 150; tries++) {
+                for (let tries = 0; tries < 100; tries++) {
                     candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); 
                     candidateY = ENEMY_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); 
                     let overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); 
@@ -341,7 +342,6 @@
         }
     }
 
-    // ĐỘI HÌNH PHE TA: 7 BALLISTA, 5 ARCHER, 4 WATCHTOWER[cite: 1]
     function startPrepPhase() {
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
@@ -1000,6 +1000,21 @@
         ctx.restore();
     }
 
+    // HÀM VẼ RECTANGLE TƯƠNG THÍCH MỌI TRÌNH DUYỆT (THAY THẾ ROUNDRECT GÂY CRASH)
+    function drawFallbackRoundedRect(ctx, x, y, width, height, radius) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+    }
+
     function drawCooldownOrReadyUI(b, px, py, targetH, offsetY) {
         if (b.team !== 0 || gamePhase !== 'COMBAT') return;
         const targetTypes = ['MAGE_TOWER', 'TREBUCHET', 'JAVELIN_HUT', 'CYCLOP_CAVE'];
@@ -1060,8 +1075,7 @@
             
             let textW = ctx.measureText("READY").width + 8;
             ctx.fillStyle = 'rgba(26, 21, 16, 0.8)';
-            ctx.beginPath();
-            ctx.roundRect(centerX - textW/2, textY - 6, textW, 12, 3);
+            drawFallbackRoundedRect(ctx, centerX - textW/2, textY - 6, textW, 12, 3);
             ctx.fill();
             ctx.strokeStyle = '#69f0ae';
             ctx.lineWidth = 1;
@@ -1136,7 +1150,6 @@
             } catch(e) {}
         });
 
-        // PREVIEW KHI ĐANG DRAG (LIFT-DRAG NHẤC CAO 2 Ô)
         if (draggingBuilding !== null && gamePhase === 'PREP') {
             let fingerOffsetY = -2 * C;
             let targetWy = mouseWy + fingerOffsetY;
