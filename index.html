@@ -137,21 +137,62 @@
         CYCLOP_CAVE:  { w: 4, h: 2, hp: 3000, reload: 0, atkRange: 0 } 
     };
 
+    // --- CAMERA & ZOOM ĐÚNG 52 Ô DỌC ---
+    const MAX_VISIBLE_V_CELLS = 52;
     let camX = (W * C) / 2; 
     let camY = (TOTAL_H * C) / 2; 
     let defaultZoom = 0.8;
     let camZoom = defaultZoom; 
 
     function resizeCanvas() { 
-        canvas.width = gameArea.clientWidth || window.innerWidth; 
-        canvas.height = gameArea.clientHeight || window.innerHeight; 
-        defaultZoom = Math.min(canvas.width / ((W + 2) * C), canvas.height / ((TOTAL_H - 2) * C));
+        const w = gameArea.clientWidth || window.innerWidth || 360;
+        const h = gameArea.clientHeight || window.innerHeight || 640;
+        canvas.width = w; 
+        canvas.height = h; 
+        
+        defaultZoom = Math.max(0.1, h / (MAX_VISIBLE_V_CELLS * C));
         camZoom = Math.max(defaultZoom, camZoom);
+        
+        camX = (W * C) / 2;
+        camY = (TOTAL_H * C) / 2;
     }
     window.addEventListener('resize', resizeCanvas); 
+    window.addEventListener('DOMContentLoaded', resizeCanvas);
     resizeCanvas();
     camZoom = defaultZoom;
 
+    // --- PINCH-TO-ZOOM (2 NGÓN TAY TRÊN MOBILE) ---
+    let touchStartDist = 0;
+    let touchStartZoom = 1;
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            let dx = e.touches[0].clientX - e.touches[1].clientX;
+            let dy = e.touches[0].clientY - e.touches[1].clientY;
+            touchStartDist = Math.hypot(dx, dy);
+            touchStartZoom = camZoom;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2 && touchStartDist > 0) {
+            e.preventDefault();
+            let dx = e.touches[0].clientX - e.touches[1].clientX;
+            let dy = e.touches[0].clientY - e.touches[1].clientY;
+            let dist = Math.hypot(dx, dy);
+            let factor = dist / touchStartDist;
+            let newZoom = touchStartZoom * factor;
+            camZoom = Math.max(defaultZoom, Math.min(2.5, newZoom));
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2) {
+            touchStartDist = 0;
+        }
+    });
+
+    // --- ZOOM CUỘN CHUỘT (DESKTOP) ---
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const zoomFactor = 1.1;
@@ -161,17 +202,11 @@
         if (newZoom !== camZoom) {
             let rect = canvas.getBoundingClientRect();
             let mouseX = e.clientX - rect.left;
-            let mouseY = e.clientY - rect.top;
-            
             let wx = (mouseX - canvas.width / 2) / camZoom + camX;
-            let wy = (mouseY - canvas.height / 2) / camZoom + camY;
-            
             camZoom = newZoom;
             camX = wx - (mouseX - canvas.width / 2) / camZoom;
-            camY = wy - (mouseY - canvas.height / 2) / camZoom;
-            
             camX = Math.max(0, Math.min(W * C, camX));
-            camY = Math.max(0, Math.min(TOTAL_H * C, camY));
+            camY = (TOTAL_H * C) / 2;
         }
     }, { passive: false });
 
@@ -188,7 +223,7 @@
     let playerMechRageTimer = 0; let aiMechRageTimer = 0; let playerMechHealTimer = 0; let aiMechHealTimer = 0; let playerCmEvadeRate = 0; let aiCmEvadeRate = 0; 
     let isGameOver = false; let selectedEntity = null;
     let buildings = []; let missiles = []; let mortars = []; let interceptors = []; let tracers = []; let particles = []; let floatingTexts = []; let shockwaves = []; let units = []; let deadUnits = []; let porters = []; let activeMissions = []; let decals = []; 
-    let isPanning = false; let lastPan = {x: 0, y: 0}; 
+    let isPanning = false; let lastPanX = 0; 
     let draggingBuilding = null;
     let mouseWx = 0, mouseWy = 0;
 
@@ -258,7 +293,6 @@
 
     function createGradientCrater(x, y, r) { decals.push({type: 'gradient', x: x, y: y, r: r, life: 8, maxLife: 8}); }
 
-    // BỐ TRÍ TRỤ AI
     function setupAIFullDefenses() {
         buildings.push(new Building(15, 2, 'MAGE_TOWER', 1));
         let prepInventoryAI = { 
@@ -405,7 +439,7 @@
     }
 
     canvas.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0 || isGameOver || isDrafting) return;
+        if (e.button !== 0 || isGameOver || isDrafting || touchStartDist > 0) return;
         let coords = getWorldCoords(e.clientX, e.clientY); 
         let gx = Math.floor(coords.wx / C); 
         let gy = Math.floor(coords.wy / C);
@@ -488,18 +522,23 @@
             } 
             globalAttackMode = null; selectedEntity = null; return;
         }
-        isPanning = true; lastPan = {x: e.clientX, y: e.clientY};
+
+        isPanning = true; 
+        lastPanX = e.clientX;
     });
 
     window.addEventListener('pointermove', e => { 
         let coords = getWorldCoords(e.clientX, e.clientY); 
         mouseWx = coords.wx; mouseWy = coords.wy; 
-        if (isPanning) { 
-            camX -= (e.clientX - lastPan.x)/camZoom; camY -= (e.clientY - lastPan.y)/camZoom; 
-            lastPan = {x: e.clientX, y: e.clientY}; 
-            camX = Math.max(0, Math.min(W * C, camX)); camY = Math.max(0, Math.min(TOTAL_H * C, camY)); 
+
+        if (isPanning && touchStartDist === 0) { 
+            camX -= (e.clientX - lastPanX) / camZoom; 
+            lastPanX = e.clientX; 
+            camX = Math.max(0, Math.min(W * C, camX)); 
+            camY = (TOTAL_H * C) / 2;
         } 
     });
+
     window.addEventListener('pointerup', e => { isPanning = false; });
     function lerpAngle(a, b, t) { let delta = ((b - a) % (Math.PI * 2)); if (delta > Math.PI) delta -= Math.PI * 2; else if (delta < -Math.PI) delta += Math.PI * 2; return a + delta * t; }
 
@@ -614,7 +653,7 @@
                             b.currentReload = b.reloadTime; 
                         } 
                     } 
-                }
+                } 
             }
             if (b.type === 'WATCHTOWER' && b.currentReload <= 0 && gamePhase === 'COMBAT') { 
                 let enemies = units.filter(u => u.team !== b.team && Math.hypot(u.x - b.cx, u.y - b.cy) < b.atkRange); 
@@ -1000,7 +1039,6 @@
         ctx.restore();
     }
 
-    // HÀM VẼ RECTANGLE TƯƠNG THÍCH MỌI TRÌNH DUYỆT (THAY THẾ ROUNDRECT GÂY CRASH)
     function drawFallbackRoundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -1335,9 +1373,14 @@
     }
 
     function draw() {
-        if (canvas.width !== gameArea.clientWidth || canvas.height !== gameArea.clientHeight) { canvas.width = gameArea.clientWidth; canvas.height = gameArea.clientHeight; }
-        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save(); ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(camZoom, camZoom); ctx.translate(-camX, -camY); drawWorld(); ctx.restore();
+        ctx.setTransform(1, 0, 0, 1, 0, 0); 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save(); 
+        ctx.translate(canvas.width / 2, canvas.height / 2); 
+        ctx.scale(camZoom, camZoom); 
+        ctx.translate(-camX, -camY); 
+        drawWorld(); 
+        ctx.restore();
     }
     requestAnimationFrame(gameLoop);
 </script>
