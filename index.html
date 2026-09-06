@@ -114,24 +114,32 @@
     }
     preloadAssets();
 
-    const C = 16; const W = 36; const ISLAND_H = 24; const SEA_H = 16; const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; 
-    const ENEMY_Y_START = 0; const SEA_Y_START = 24; const PLAYER_Y_START = 40; 
+    // --- GAME CONFIG: ĐẢO 20 Ô, BIỂN 16 Ô, TỔNG 56 Ô ---
+    const C = 16; 
+    const W = 36; 
+    const ISLAND_H = 20; 
+    const SEA_H = 16; 
+    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 56
+    const ENEMY_Y_START = 0; 
+    const SEA_Y_START = 20; 
+    const PLAYER_Y_START = 36; 
     let fog = Array(W).fill().map(() => Array(TOTAL_H).fill(true));
     
     const UNIT_STATS = { CYCLOP: { buildTime: 30, maxCap: 1 }, TROLL_JAVELIN: { buildTime: 10, maxCap: 3 } };
     
+    // Trebuchet 3x4 khóa theo chiều ngang
     const STATS = {
-        MAGE_TOWER:   { w: 6, h: 3, vH: 4, hp: 5000, reload: 20, atkRange: 0 }, 
-        TREBUCHET:    { w: 3, h: 4, vH: 4, hp: 800, reload: 30, atkRange: 0 }, 
-        ARCHER_TOWER: { w: 3, h: 2, vH: 3, hp: 1000, reload: 0.08, atkRange: 6 * C }, 
+        MAGE_TOWER:   { w: 6, h: 3, hp: 5000, reload: 20, atkRange: 0 }, 
+        TREBUCHET:    { w: 3, h: 4, hp: 800, reload: 30, atkRange: 0 }, 
+        ARCHER_TOWER: { w: 3, h: 2, hp: 1000, reload: 0.08, atkRange: 6 * C }, 
         BALLISTA:     { w: 2, h: 2, hp: 1500, reload: 5, atkRange: 10 * C }, 
         WATCHTOWER:   { w: 2, h: 2, hp: 2500, reload: 0.5, atkRange: 6 * C }, 
         JAVELIN_HUT:  { w: 3, h: 3, hp: 2000, reload: 0, atkRange: 0 }, 
-        CYCLOP_CAVE:  { w: 4, h: 2, vH: 3, hp: 3000, reload: 0, atkRange: 0 } 
+        CYCLOP_CAVE:  { w: 4, h: 2, hp: 3000, reload: 0, atkRange: 0 } 
     };
 
     let camX = (W * C) / 2; let camY = (TOTAL_H * C) / 2; 
-    let defaultZoom = 0.65;
+    let defaultZoom = 0.8;
     let camZoom = defaultZoom; 
 
     function resizeCanvas() { 
@@ -232,13 +240,13 @@
             this.x = x; this.y = y; this.type = type; this.team = team; this.state = 'IDLE'; 
             this.walkCycle = Math.random() * 10;
             this.homePort = homePort; this.mission = null; this.deployed = false; this.boardTarget = null; this.healTick = 0;
-            this.attackTimer = 0; // Để render anim đánh
+            this.attackTimer = 0;
             if(type === 'CYCLOP') { 
                 this.hp = 3000; this.maxHp = 3000; this.speed = 20; 
                 this.atkRange = 1.6 * C; this.reload = 1.0; this.dmg = 250; this.aoe = 2 * C; this.size = 14; 
             } else if(type === 'TROLL_JAVELIN') { 
                 this.hp = 600; this.maxHp = 600; this.speed = 26; 
-                this.atkRange = 4.5 * C; // Troll phóng lao tầm xa[cite: 1]
+                this.atkRange = 4.5 * C;[cite: 1]
                 this.reload = 0.8; this.dmg = 50; this.aoe = 0; this.size = 7; 
             } 
             this.viewRange = this.atkRange + 3 * C; this.currentReload = 0; this.angle = 0;
@@ -255,7 +263,12 @@
         for (const [type, count] of Object.entries(prepInventoryAI)) {
             for(let i=0; i<count; i++) {
                 let overlap = true; let tries = 0; let candidateX, candidateY;
-                while(overlap && tries < 500) { candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); candidateY = ENEMY_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); tries++; }
+                while(overlap && tries < 500) { 
+                    candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); 
+                    candidateY = ENEMY_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); 
+                    overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); 
+                    tries++; 
+                }
                 if (!overlap) buildings.push(new Building(candidateX, candidateY, type, 1));
             }
         }
@@ -297,27 +310,60 @@
         else if (id === 'MECH_RAGE') { playerMechRageTimer = 5; showTextMsg("Troops gained Bloodlust!"); }
         else if (id === 'MECH_HEAL') { playerMechHealTimer = 5; showTextMsg("Holy Light heals troops!"); }
         else if (id === 'CM_EVADE') { playerCmEvadeRate += 0.03; showTextMsg("Monsters got Wind Shield!"); }
-        else if (id.startsWith('FREE_')) { let type = id.replace('FREE_', ''); let overlap = true; let tries = 0; let candidateX, candidateY; while(overlap && tries < 500) { candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); candidateY = PLAYER_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); tries++; } if (!overlap) { buildings.push(new Building(candidateX, candidateY, type, 0)); showTextMsg("Building constructed!"); } else showTextMsg("No space to build!"); }
+        else if (id.startsWith('FREE_')) { 
+            let type = id.replace('FREE_', ''); 
+            let overlap = true; let tries = 0; let candidateX, candidateY; 
+            while(overlap && tries < 500) { 
+                candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); 
+                candidateY = PLAYER_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); 
+                overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); 
+                tries++; 
+            } 
+            if (!overlap) { buildings.push(new Building(candidateX, candidateY, type, 0)); showTextMsg("Building constructed!"); } 
+            else showTextMsg("No space to build!"); 
+        }
     }
 
+    // KHỞI ĐẦU ĐẢO 20 Ô (ĐÃ CĂN TỌA ĐỘ MỚI)
     function startPrepPhase() {
-        document.getElementById('btnBigReady').style.display = 'none'; document.getElementById('btnSaveFormation').style.display = 'flex'; showTextMsg("DRAG AND DROP TO DEPLOY"); gamePhase = 'PREP'; prepTimer = 30;
-        buildings.push(new Building(15, 51, 'MAGE_TOWER', 0)); 
-        let aamX = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30]; aamX.forEach(x => buildings.push(new Building(x, 42, 'BALLISTA', 0))); 
-        let ciwsX = [3, 7, 11, 15, 19, 23, 27]; ciwsX.forEach(x => buildings.push(new Building(x, 45, 'ARCHER_TOWER', 0))); 
-        let bunkerX = [4, 10, 15, 20, 25, 30]; bunkerX.forEach(x => buildings.push(new Building(x, 48, 'WATCHTOWER', 0)));
-        buildings.push(new Building(8, 54, 'TREBUCHET', 0)); buildings.push(new Building(17, 55, 'TREBUCHET', 0)); buildings.push(new Building(26, 54, 'TREBUCHET', 0)); 
-        buildings.push(new Building(7, 58, 'JAVELIN_HUT', 0)); buildings.push(new Building(25, 57, 'CYCLOP_CAVE', 0)); 
+        document.getElementById('btnBigReady').style.display = 'none'; 
+        document.getElementById('btnSaveFormation').style.display = 'flex'; 
+        showTextMsg("DRAG AND DROP TO DEPLOY"); 
+        gamePhase = 'PREP'; 
+        prepTimer = 30;
+
+        buildings.push(new Building(15, 47, 'MAGE_TOWER', 0)); 
+        let aamX = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30]; 
+        aamX.forEach(x => buildings.push(new Building(x, 38, 'BALLISTA', 0))); 
+        let ciwsX = [3, 7, 11, 15, 19, 23, 27]; 
+        ciwsX.forEach(x => buildings.push(new Building(x, 41, 'ARCHER_TOWER', 0))); 
+        let bunkerX = [4, 10, 15, 20, 25, 30]; 
+        bunkerX.forEach(x => buildings.push(new Building(x, 44, 'WATCHTOWER', 0)));
+        buildings.push(new Building(8, 49, 'TREBUCHET', 0)); 
+        buildings.push(new Building(17, 50, 'TREBUCHET', 0)); 
+        buildings.push(new Building(26, 49, 'TREBUCHET', 0)); 
+        buildings.push(new Building(7, 52, 'JAVELIN_HUT', 0)); 
+        buildings.push(new Building(25, 52, 'CYCLOP_CAVE', 0)); 
     }
 
     function startCombatPhase() {
         draggingBuilding = null;
         gamePhase = 'COMBAT'; 
         document.getElementById('btnSaveFormation').style.display = 'none';
-        document.getElementById('btnMAGE_TOWER').style.display = 'flex'; document.getElementById('btnTREBUCHET').style.display = 'flex'; document.getElementById('btnJAVELIN_HUT').style.display = 'flex'; document.getElementById('btnCYCLOP_CAVE').style.display = 'flex';
-        document.getElementById('phasePrefix').innerText = `⚔️ COMBAT: `; document.getElementById('timerTxt').innerText = `06:00`; document.getElementById('draftSpan').style.display = 'inline';
-        updateStatsUI(); showTextMsg("⚔️ BATTLE START!");
-        buildings.forEach(b => { if (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') b.spawnTimer = 0; if (b.type === 'TREBUCHET') b.currentReload = b.reloadTime; if (b.type === 'MAGE_TOWER') b.currentReload = 0; });
+        document.getElementById('btnMAGE_TOWER').style.display = 'flex'; 
+        document.getElementById('btnTREBUCHET').style.display = 'flex'; 
+        document.getElementById('btnJAVELIN_HUT').style.display = 'flex'; 
+        document.getElementById('btnCYCLOP_CAVE').style.display = 'flex';
+        document.getElementById('phasePrefix').innerText = `⚔️ COMBAT: `; 
+        document.getElementById('timerTxt').innerText = `06:00`; 
+        document.getElementById('draftSpan').style.display = 'inline';
+        updateStatsUI(); 
+        showTextMsg("⚔️ BATTLE START!");
+        buildings.forEach(b => { 
+            if (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') b.spawnTimer = 0; 
+            if (b.type === 'TREBUCHET') b.currentReload = b.reloadTime; 
+            if (b.type === 'MAGE_TOWER') b.currentReload = 0; 
+        });
     }
 
     function checkPlacementValid(type, gx, gy, ignoreBuilding = null) { 
@@ -330,7 +376,8 @@
 
     function selectGlobalAttack(type) {
         if (gamePhase !== 'COMBAT' || isDrafting) return;
-        selectedEntity = null; globalAttackMode = type;
+        selectedEntity = null; 
+        globalAttackMode = type;
         if (type === 'MAGE_TOWER') showTextMsg(`🔥 Mage selected. Tap Enemy Island to cast Arcane Burst!`); 
         else if (type === 'TREBUCHET') showTextMsg(`🔥 ALL Trebuchets selected. Tap Enemy Island to throw Fireballs!`); 
         else showTextMsg(`🔥 Barracks selected. Tap Enemy Island to deploy troops!`);
@@ -342,13 +389,18 @@
         let gx = Math.floor(coords.wx / C); 
         let gy = Math.floor(coords.wy / C);
 
+        // THẢ CÔNG TRÌNH VỚI ĐỘ LỆCH NHẤC LÊN TRÊN NGÓN TAY (LIFT-DRAG)
         if (draggingBuilding !== null) {
             if (gamePhase === 'PREP') { 
-                if (checkPlacementValid(draggingBuilding.type, gx, gy, draggingBuilding)) { 
-                    draggingBuilding.gx = gx;
-                    draggingBuilding.gy = gy;
-                    draggingBuilding.cx = gx * C + (draggingBuilding.w * C)/2;
-                    draggingBuilding.cy = gy * C + (draggingBuilding.h * C)/2;
+                let targetWy = coords.wy - 2 * C;
+                let dropGx = Math.floor(coords.wx / C);
+                let dropGy = Math.floor(targetWy / C);
+
+                if (checkPlacementValid(draggingBuilding.type, dropGx, dropGy, draggingBuilding)) { 
+                    draggingBuilding.gx = dropGx;
+                    draggingBuilding.gy = dropGy;
+                    draggingBuilding.cx = dropGx * C + (draggingBuilding.w * C)/2;
+                    draggingBuilding.cy = dropGy * C + (draggingBuilding.h * C)/2;
                     showTextMsg(`Đã đặt ${draggingBuilding.type}`);
                 } else {
                     showTextMsg("Vị trí vướng hoặc không hợp lệ!");
@@ -381,10 +433,12 @@
                 let hq = selectedEntity || buildings.find(b => b.team === 0 && b.type === 'MAGE_TOWER' && b.hp > 0);
                 if (hq && hq.currentReload <= 0) { 
                     hq.currentReload = hq.reloadTime * playerHqCdMod; 
-                    // Bắn trực tiếp từ đầu gậy phép thuật
-                    let visualH = (STATS['MAGE_TOWER'].vH || hq.h) * C;
-                    let offsetY = visualH - (hq.h * C);
-                    let staffHeadX = (hq.gx * C + (hq.w * C) / 2) + 6;
+                    let drawW = hq.w * C;
+                    let targetH = drawW;
+                    let img = loadedImages['CASTLE_BASE'];
+                    if (img && img.complete && img.naturalWidth !== 0) targetH = drawW * (img.naturalHeight / img.naturalWidth);
+                    let offsetY = targetH - (hq.h * C);
+                    let staffHeadX = (hq.gx * C + drawW / 2) + 6;
                     let staffHeadY = (hq.gy * C - offsetY - 10 + C) - 18;
                     mortars.push(new MortarShell(staffHeadX, staffHeadY, coords.wx, coords.wy, 0, playerHqDmgMod)); 
                 }
@@ -447,15 +501,26 @@
             let aiPorts = buildings.filter(b => (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') && b.team === 1 && b.hp > 0);
             aiPorts.forEach(port => {
                 let aiIdle = units.filter(u => u.team === 1 && !u.deployed && u.homePort === port && u.state !== 'BOARDING_AUTO');
-                if (aiIdle.length > 0) { let mission = { mechPort: port, tx: (2 + Math.random() * (W - 4))*C, ty: (PLAYER_Y_START + 2 + Math.random() * (ISLAND_H - 4))*C, team: 1, expected: aiIdle.length }; aiIdle.forEach(u => { u.state = 'BOARDING_AUTO'; u.boardTarget = port; u.mission = mission; }); let p = new Porter(port.cx, -100, 1); p.mission = mission; p.tx = port.cx; p.ty = port.cy; p.state = 'FLYING_TO_PORT'; p.angle = Math.PI/2; porters.push(p); }
+                if (aiIdle.length > 0) { 
+                    let mission = { mechPort: port, tx: (2 + Math.random() * (W - 4))*C, ty: (PLAYER_Y_START + 2 + Math.random() * (ISLAND_H - 4))*C, team: 1, expected: aiIdle.length }; 
+                    aiIdle.forEach(u => { u.state = 'BOARDING_AUTO'; u.boardTarget = port; u.mission = mission; }); 
+                    let p = new Porter(port.cx, -100, 1); p.mission = mission; p.tx = port.cx; p.ty = port.cy; p.state = 'FLYING_TO_PORT'; p.angle = Math.PI/2; porters.push(p); 
+                }
             });
-            let aiCMs = buildings.filter(b => b.team === 1 && b.type === 'TREBUCHET' && b.currentReload <= 0 && b.hp > 0); aiCMs.forEach(s => { s.currentReload = s.reloadTime; missiles.push(new Missile(s.cx, s.cy, 2 + Math.random() * (W - 4), PLAYER_Y_START + 2 + Math.random() * (ISLAND_H - 4), 1)); });
+            let aiCMs = buildings.filter(b => b.team === 1 && b.type === 'TREBUCHET' && b.currentReload <= 0 && b.hp > 0); 
+            aiCMs.forEach(s => { 
+                s.currentReload = s.reloadTime; 
+                missiles.push(new Missile(s.cx, s.cy, 2 + Math.random() * (W - 4), PLAYER_Y_START + 2 + Math.random() * (ISLAND_H - 4), 1)); 
+            });
             let aiBase = buildings.find(b => b.team === 1 && b.type === 'MAGE_TOWER' && b.hp > 0 && b.currentReload <= 0); 
             if (aiBase) { 
                 aiBase.currentReload = aiBase.reloadTime * aiHqCdMod; 
-                let visualH = (STATS['MAGE_TOWER'].vH || aiBase.h) * C;
-                let offsetY = visualH - (aiBase.h * C);
-                let staffHeadX = (aiBase.gx * C + (aiBase.w * C) / 2) + 6;
+                let drawW = aiBase.w * C;
+                let targetH = drawW;
+                let img = loadedImages['CASTLE_BASE'];
+                if (img && img.complete && img.naturalWidth !== 0) targetH = drawW * (img.naturalHeight / img.naturalWidth);
+                let offsetY = targetH - (aiBase.h * C);
+                let staffHeadX = (aiBase.gx * C + drawW / 2) + 6;
                 let staffHeadY = (aiBase.gy * C - offsetY - 10 + C) - 18;
                 mortars.push(new MortarShell(staffHeadX, staffHeadY, (2 + Math.random()*(W-4))*C, (PLAYER_Y_START + 2 + Math.random()*(ISLAND_H-4))*C, 1, aiHqDmgMod)); 
             }
@@ -500,10 +565,13 @@
                                 ];
                                 b.lastShooterIdx = ((b.lastShooterIdx || 0) + 1) % 3;
                                 let p = archerOffsets[b.lastShooterIdx];
-                                let visualH = (STATS[b.type].vH || b.h) * C;
-                                let offsetY = visualH - (b.h * C);
-                                let spawnX = (b.gx * C + (b.w * C) / 2) + p.ox;
-                                let spawnY = b.gy * C - offsetY + (visualH * 0.4) + p.oy;
+                                let targetW = b.w * C;
+                                let targetH = targetW;
+                                let img = loadedImages['ARCHER_BASE'];
+                                if (img && img.complete && img.naturalWidth !== 0) targetH = targetW * (img.naturalHeight / img.naturalWidth);
+                                let offsetY = targetH - (b.h * C);
+                                let spawnX = (b.gx * C + targetW / 2) + p.ox;
+                                let spawnY = b.gy * C - offsetY + (targetH * 0.4) + p.oy;
 
                                 tracers.push({sx: spawnX, sy: spawnY, tx: target.x, ty: target.y, life: 0.15, maxLife: 0.15, type: 'PROJ_ARCHER'}); 
                             }
@@ -527,12 +595,11 @@
             }
         });
 
-        // --- CẬP NHẬT LÍNH & XỬ LÝ DỌN DẸP XÁC CHẾT ---
+        // --- CẬP NHẬT LÍNH & CLEANUP XÁC CHẾT ---
         for (let i = units.length - 1; i >= 0; i--) {
             let u = units[i]; 
             if (u.hp <= 0) { 
                 if (u.mission) u.mission.expected--; 
-                // Tạo hiệu ứng chết (xác mờ dần và khói)
                 deadUnits.push({
                     x: u.x, y: u.y, type: u.type, team: u.team, size: u.size, angle: u.angle,
                     life: 0.8, maxLife: 0.8
@@ -578,14 +645,13 @@
                     u.state = 'ATTACK';
                     if (u.currentReload <= 0) { 
                         u.currentReload = u.reload; 
-                        u.attackTimer = 0.35; // Thời gian vung đòn
+                        u.attackTimer = 0.35;
 
                         if (u.type === 'CYCLOP') {
                             if (u.aoe > 0) potentialTargets.forEach(e => { if(Math.hypot((e.cx||e.x) - targetX, (e.cy||e.y) - targetY) <= u.aoe) e.hp -= u.dmg; }); 
                             else closest.hp -= u.dmg; 
                             particles.push({x: targetX, y: targetY, vx: 0, vy: 0, life: 0.2, maxLife: 0.2, size: 16, color: '#fbc02d', type: 'slash', angle: u.angle}); 
                         } else if (u.type === 'TROLL_JAVELIN') {
-                            // TROLL PHÓNG LAO BAY ĐẾN ĐỊCH
                             tracers.push({sx: u.x, sy: u.y, tx: targetX, ty: targetY, life: 0.2, maxLife: 0.2, type: 'PROJ_JAVELIN'});
                             closest.hp -= u.dmg;
                         }
@@ -601,7 +667,6 @@
             }
         }
 
-        // Cập nhật fade xác chết và xoá sạch
         for (let i = deadUnits.length - 1; i >= 0; i--) {
             deadUnits[i].life -= dt;
             if (deadUnits[i].life <= 0) deadUnits.splice(i, 1);
@@ -628,11 +693,10 @@
             } else { p.x += (dx/dist) * p.speed * dt; p.y += (dy/dist) * p.speed * dt; } 
         }
 
-        // --- MAGE MORTARS (TRAIL TÁCH XA PHÍA SAU ĐẠN) ---
+        // --- MAGE TRAIL (LÙI HẲN RA SAU ĐẠN) ---
         for (let i = mortars.length - 1; i >= 0; i--) { 
             let m = mortars[i]; 
             if (!isHiddenInFog(m.x, m.y, m.team)) {
-                // Tính vector di chuyển để hạt lùi hẳn ra sau viên đạn
                 let curY = m.y - m.z;
                 let dirX = (m.tx - m.sx) / m.dist;
                 let dirY = (m.ty - m.sy) / m.dist;
@@ -661,13 +725,13 @@
             } 
         }
         
-        // --- TREBUCHET MISSILES (TRAIL LỬA LÙI HẲN RA ĐUÔI) ---
+        // --- TREBUCHET TRAIL (LÙI HẲN RA ĐUÔI) ---
         for (let i = missiles.length - 1; i >= 0; i--) { 
             let m = missiles[i]; 
             if (!isHiddenInFog(m.x, m.y, m.team)) {
                 let dirX = m.vx / m.speed;
                 let dirY = m.vy / m.speed;
-                let trailOffsetX = -dirX * 18; // Lùi hẳn ra sau 18px
+                let trailOffsetX = -dirX * 18; 
                 let trailOffsetY = -dirY * 18;
 
                 for (let k = 0; k < 3; k++) {
@@ -728,203 +792,185 @@
 
     function revealFog(gx, gy, radius) { if (isNaN(gx) || isNaN(gy)) return; for (let x = Math.max(0, Math.floor(gx-radius)); x <= Math.min(W-1, Math.ceil(gx+radius)); x++) { for (let y = Math.max(0, Math.floor(gy-radius)); y <= Math.min(TOTAL_H-1, Math.ceil(gy+radius)); y++) { if (Math.hypot(x - gx, y - gy) <= radius && fog[x]) fog[x][y] = false; } } }
 
+    // --- HÀM VẼ CÔNG TRÌNH (KHÓA THEO CHIỀU RỘNG GRID, TỰ ĐỘNG SCALE CAO ĐÚNG TỶ LỆ) ---
     function drawBuildingSprite(b, px, py, isGhost = false) {
-    let img = loadedImages[b.type];
-    ctx.save();
-    if (isGhost) ctx.globalAlpha = 0.45;
+        let img = loadedImages[b.type];
+        ctx.save();
+        if (isGhost) ctx.globalAlpha = 0.45;
 
-    // --- TÍNH KÍCH THƯỚC KHÓA THEO CHIỀU RỘNG GRID ---
-    let targetW = b.w * C;
-    let targetH = b.h * C;
+        let targetW = b.w * C;
+        let targetH = b.h * C;
 
-    // Nếu là Spritesheet Trebuchet (6 frames chia thành 6 cột)
-    if (b.type === 'TREBUCHET') {
-        let tImg = loadedImages['TREBUCHET'];
-        if (tImg && tImg.complete && tImg.naturalWidth !== 0) {
-            let cols = 6, rows = 1;
-            let frameW = tImg.naturalWidth / cols;
-            let frameH = tImg.naturalHeight / rows;
-            let aspectRatio = frameH / frameW;
-            targetH = targetW * aspectRatio;
-        }
-    } 
-    // Các công trình dùng ảnh đơn khác
-    else if (img && img.complete && img.naturalWidth !== 0) {
-        let aspectRatio = img.naturalHeight / img.naturalWidth;
-        targetH = targetW * aspectRatio;
-    }
-
-    // Độ lệch trục Y để đế ảnh chạm đáy grid, phần thân vươn lên trên
-    let offsetY = targetH - (b.h * C);
-
-    // ==========================================
-    // 1. BALLISTA
-    // ==========================================
-    if (b.type === 'BALLISTA') {
-        let baseImg = loadedImages['BALLISTA_BASE'];
-        let topImg = loadedImages['BALLISTA_TOP'];
-        let arrowImg = loadedImages['PROJ_BALLISTA'];
-        
-        let scaleBase = 1.2;
-        let baseW = targetW * scaleBase;
-        let baseH = targetH * scaleBase;
-        let baseOffsetX = (baseW - targetW) / 2;
-        let baseOffsetY = (baseH - targetH);
-
-        if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) {
-            ctx.drawImage(baseImg, px - baseOffsetX, py - offsetY - baseOffsetY, baseW, baseH);
-        } else { 
-            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
-            ctx.fillRect(px, py - offsetY, targetW, targetH); 
-        }
-
-        if (topImg && topImg.complete && topImg.naturalWidth !== 0) {
-            ctx.save();
-            ctx.translate(px + targetW / 2, py - offsetY + targetH / 2 - 10);
-            ctx.rotate(b.angle + Math.PI/2);
-            
-            let recoil = 0;
-            if (b.currentReload > b.reloadTime - 0.2) recoil = ((b.currentReload - (b.reloadTime - 0.2)) / 0.2) * 8; 
-            
-            ctx.drawImage(topImg, -targetW / 2, -targetH / 2 + recoil, targetW, targetH);
-            
-            if (b.currentReload <= 0 && arrowImg && arrowImg.complete && arrowImg.naturalWidth !== 0) {
-                ctx.drawImage(arrowImg, -4, -targetH / 2 + 2 + recoil, 8, 24);
+        if (b.type === 'TREBUCHET') {
+            let tImg = loadedImages['TREBUCHET'];
+            if (tImg && tImg.complete && tImg.naturalWidth !== 0) {
+                let cols = 6, rows = 1;
+                let frameW = tImg.naturalWidth / cols;
+                let frameH = tImg.naturalHeight / rows;
+                targetH = targetW * (frameH / frameW);
             }
-            ctx.restore();
+        } else if (img && img.complete && img.naturalWidth !== 0) {
+            targetH = targetW * (img.naturalHeight / img.naturalWidth);
         }
-    } 
-    // ==========================================
-    // 2. ARCHER TOWER
-    // ==========================================
-    else if (b.type === 'ARCHER_TOWER') {
-        let baseImg = loadedImages['ARCHER_BASE'];
-        let archerImg = loadedImages['U_ARCHER'];
-        
-        if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) ctx.drawImage(baseImg, px, py - offsetY, targetW, targetH);
-        else { ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; ctx.fillRect(px, py - offsetY, targetW, targetH); }
-        
-        if (archerImg && archerImg.complete && archerImg.naturalWidth !== 0) {
-            let isShooting = (b.currentReload > 0 && gamePhase === 'COMBAT');
-            const archerPos = [
-                { ox: -6,  oy: -22 },
-                { ox: 14,  oy: -28 },
-                { ox: 6,   oy: -14 }
-            ];
 
-            let sortedPos = [...archerPos].sort((a, b) => a.oy - b.oy);
-            sortedPos.forEach((pos, idx) => {
-                let bob = isShooting ? Math.sin(Date.now() / 40 + idx * 2.1) * 3 : 0;
-                let ax = (px + targetW / 2) + pos.ox - 11;
-                let ay = py - offsetY + (targetH * 0.4) + pos.oy + bob;
-                ctx.drawImage(archerImg, ax, ay, 22, 22);
-            });
-        }
-    }
-    // ==========================================
-    // 3. WATCHTOWER / T_BUNKER (BỎ SCALE 1.5, ÉP KHÍT CHIỀU RỘNG GRID)
-    // ==========================================
-    else if (b.type === 'WATCHTOWER') {
-        if (img && img.complete && img.naturalWidth !== 0) {
-            ctx.drawImage(img, px, py - offsetY, targetW, targetH);
-        } else {
-            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
-            ctx.fillRect(px, py - offsetY, targetW, targetH);
-            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
-            ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
-        }
-    }
-    // ==========================================
-    // 4. MAGE TOWER
-    // ==========================================
-    else if (b.type === 'MAGE_TOWER') {
-        let baseImg = loadedImages['CASTLE_BASE'];
-        let mageImg = loadedImages['U_MAGE_01'];
-        let bulletImg = loadedImages['U_Mage_01_bullet'];
-        
-        if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) ctx.drawImage(baseImg, px, py - offsetY, targetW, targetH);
-        else { ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; ctx.fillRect(px, py - offsetY, targetW, targetH); }
-        
-        let staffX = px + targetW / 2;
-        let staffY = py - offsetY - 10 + C;
+        let offsetY = targetH - (b.h * C);
 
-        if (mageImg && mageImg.complete && mageImg.naturalWidth !== 0) {
-            ctx.save();
-            ctx.translate(staffX, staffY);
-            let scaleX = 1, scaleY = 1;
-            let actualReloadTime = b.reloadTime * (b.team === 0 ? playerHqCdMod : aiHqCdMod);
-            if (b.currentReload > actualReloadTime - 0.3) { scaleX = 0.8; scaleY = 1.3; } 
-            else if (b.currentReload > actualReloadTime - 0.6) { scaleX = 1.2; scaleY = 0.8; }
-            ctx.scale(scaleX, scaleY);
-            ctx.drawImage(mageImg, -24, -30, 48, 48);
+        // 1. BALLISTA
+        if (b.type === 'BALLISTA') {
+            let baseImg = loadedImages['BALLISTA_BASE'];
+            let topImg = loadedImages['BALLISTA_TOP'];
+            let arrowImg = loadedImages['PROJ_BALLISTA'];
+            
+            let scaleBase = 1.2;
+            let baseW = targetW * scaleBase;
+            let baseH = targetH * scaleBase;
+            let baseOffsetX = (baseW - targetW) / 2;
+            let baseOffsetY = (baseH - targetH);
 
-            if (b.currentReload <= 0) {
-                let pulse = 1 + Math.sin(Date.now() / 150) * 0.18;
-                let bSize = 16 * pulse;
-                let headX = 6, headY = -18;
-                if (bulletImg && bulletImg.complete && bulletImg.naturalWidth !== 0) {
-                    ctx.drawImage(bulletImg, headX - bSize/2, headY - bSize/2, bSize, bSize);
-                } else {
-                    ctx.fillStyle = '#d500f9';
-                    ctx.beginPath();
-                    ctx.arc(headX, headY, bSize/2.5, 0, Math.PI*2);
-                    ctx.fill();
+            if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) {
+                ctx.drawImage(baseImg, px - baseOffsetX, py - offsetY - baseOffsetY, baseW, baseH);
+            } else { 
+                ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+                ctx.fillRect(px, py - offsetY, targetW, targetH); 
+            }
+
+            if (topImg && topImg.complete && topImg.naturalWidth !== 0) {
+                ctx.save();
+                ctx.translate(px + targetW / 2, py - offsetY + targetH / 2 - 10);
+                ctx.rotate(b.angle + Math.PI/2);
+                
+                let recoil = 0;
+                if (b.currentReload > b.reloadTime - 0.2) recoil = ((b.currentReload - (b.reloadTime - 0.2)) / 0.2) * 8; 
+                
+                ctx.drawImage(topImg, -targetW / 2, -targetH / 2 + recoil, targetW, targetH);
+                
+                if (b.currentReload <= 0 && arrowImg && arrowImg.complete && arrowImg.naturalWidth !== 0) {
+                    ctx.drawImage(arrowImg, -4, -targetH / 2 + 2 + recoil, 8, 24);
                 }
+                ctx.restore();
             }
-            ctx.restore();
-        }
-    }
-    // ==========================================
-    // 5. TREBUCHET (3x4 KHÓA THEO CHIỀU RỘNG)
-    // ==========================================
-    else if (b.type === 'TREBUCHET') {
-        let tImg = loadedImages['TREBUCHET']; 
-        if (tImg && tImg.complete && tImg.naturalWidth !== 0) {
-            let cols = 6, rows = 1;
-            let frameW = tImg.naturalWidth / cols; 
-            let frameH = tImg.naturalHeight / rows;
-            let currentFrame = 0; 
-            let actualReloadTime = b.reloadTime * (b.team === 0 ? playerHqCdMod : aiHqCdMod);
-            let timeSinceFired = actualReloadTime - b.currentReload;
-            let firingDuration = 0.6; 
+        } 
+        // 2. ARCHER TOWER
+        else if (b.type === 'ARCHER_TOWER') {
+            let baseImg = loadedImages['ARCHER_BASE'];
+            let archerImg = loadedImages['U_ARCHER'];
             
-            if (gamePhase === 'COMBAT') {
-                if (b.currentReload > 0 && timeSinceFired < firingDuration) {
-                    let progress = timeSinceFired / firingDuration;
-                    currentFrame = 2 + Math.floor(progress * 4); 
-                    if (currentFrame > 5) currentFrame = 5;
-                }
-                else if (b.currentReload <= 0) currentFrame = 1; 
-                else currentFrame = 0; 
+            if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) ctx.drawImage(baseImg, px, py - offsetY, targetW, targetH);
+            else { ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; ctx.fillRect(px, py - offsetY, targetW, targetH); }
+            
+            if (archerImg && archerImg.complete && archerImg.naturalWidth !== 0) {
+                let isShooting = (b.currentReload > 0 && gamePhase === 'COMBAT');
+                const archerPos = [
+                    { ox: -6,  oy: -22 },
+                    { ox: 14,  oy: -28 },
+                    { ox: 6,   oy: -14 }
+                ];
+
+                let sortedPos = [...archerPos].sort((a, b) => a.oy - b.oy);
+                sortedPos.forEach((pos, idx) => {
+                    let bob = isShooting ? Math.sin(Date.now() / 40 + idx * 2.1) * 3 : 0;
+                    let ax = (px + targetW / 2) + pos.ox - 11;
+                    let ay = py - offsetY + (targetH * 0.4) + pos.oy + bob;
+                    ctx.drawImage(archerImg, ax, ay, 22, 22);
+                });
             }
-
-            let cutX = currentFrame * frameW;
-            ctx.drawImage(tImg, cutX, 0, frameW, frameH, px, py - offsetY, targetW, targetH); 
-        } else {
-            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
-            ctx.fillRect(px, py - offsetY, targetW, targetH);
-            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
-            ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
         }
-    }
-    // ==========================================
-    // 6. CÁC KIẾN TRÚC CÒN LẠI (JAVELIN_HUT, CYCLOP_CAVE...)
-    // ==========================================
-    else {
-        if (img && img.complete && img.naturalWidth !== 0) {
-            ctx.drawImage(img, px, py - offsetY, targetW, targetH); 
-        } else { 
-            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
-            ctx.fillRect(px, py - offsetY, targetW, targetH);
-            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
-            ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
+        // 3. WATCHTOWER / T_BUNKER (KHÓA KHÍT GRID, BỎ SCALE 1.5)
+        else if (b.type === 'WATCHTOWER') {
+            if (img && img.complete && img.naturalWidth !== 0) {
+                ctx.drawImage(img, px, py - offsetY, targetW, targetH);
+            } else {
+                ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+                ctx.fillRect(px, py - offsetY, targetW, targetH);
+                ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
+                ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
+            }
         }
+        // 4. MAGE TOWER
+        else if (b.type === 'MAGE_TOWER') {
+            let baseImg = loadedImages['CASTLE_BASE'];
+            let mageImg = loadedImages['U_MAGE_01'];
+            let bulletImg = loadedImages['U_Mage_01_bullet'];
+            
+            if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) ctx.drawImage(baseImg, px, py - offsetY, targetW, targetH);
+            else { ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; ctx.fillRect(px, py - offsetY, targetW, targetH); }
+            
+            let staffX = px + targetW / 2;
+            let staffY = py - offsetY - 10 + C;
+
+            if (mageImg && mageImg.complete && mageImg.naturalWidth !== 0) {
+                ctx.save();
+                ctx.translate(staffX, staffY);
+                let scaleX = 1, scaleY = 1;
+                let actualReloadTime = b.reloadTime * (b.team === 0 ? playerHqCdMod : aiHqCdMod);
+                if (b.currentReload > actualReloadTime - 0.3) { scaleX = 0.8; scaleY = 1.3; } 
+                else if (b.currentReload > actualReloadTime - 0.6) { scaleX = 1.2; scaleY = 0.8; }
+                ctx.scale(scaleX, scaleY);
+                ctx.drawImage(mageImg, -24, -30, 48, 48);
+
+                if (b.currentReload <= 0) {
+                    let pulse = 1 + Math.sin(Date.now() / 150) * 0.18;
+                    let bSize = 16 * pulse;
+                    let headX = 6, headY = -18;
+                    if (bulletImg && bulletImg.complete && bulletImg.naturalWidth !== 0) {
+                        ctx.drawImage(bulletImg, headX - bSize/2, headY - bSize/2, bSize, bSize);
+                    } else {
+                        ctx.fillStyle = '#d500f9';
+                        ctx.beginPath();
+                        ctx.arc(headX, headY, bSize/2.5, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                }
+                ctx.restore();
+            }
+        }
+        // 5. TREBUCHET (3x4 SPRITESHEET 6 FRAMES)
+        else if (b.type === 'TREBUCHET') {
+            let tImg = loadedImages['TREBUCHET']; 
+            if (tImg && tImg.complete && tImg.naturalWidth !== 0) {
+                let cols = 6, rows = 1;
+                let frameW = tImg.naturalWidth / cols; 
+                let frameH = tImg.naturalHeight / rows;
+                let currentFrame = 0; 
+                let actualReloadTime = b.reloadTime * (b.team === 0 ? playerHqCdMod : aiHqCdMod);
+                let timeSinceFired = actualReloadTime - b.currentReload;
+                let firingDuration = 0.6; 
+                
+                if (gamePhase === 'COMBAT') {
+                    if (b.currentReload > 0 && timeSinceFired < firingDuration) {
+                        let progress = timeSinceFired / firingDuration;
+                        currentFrame = 2 + Math.floor(progress * 4); 
+                        if (currentFrame > 5) currentFrame = 5;
+                    }
+                    else if (b.currentReload <= 0) currentFrame = 1; 
+                    else currentFrame = 0; 
+                }
+
+                let cutX = currentFrame * frameW;
+                ctx.drawImage(tImg, cutX, 0, frameW, frameH, px, py - offsetY, targetW, targetH); 
+            } else {
+                ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+                ctx.fillRect(px, py - offsetY, targetW, targetH);
+                ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
+                ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
+            }
+        }
+        // 6. CÁC KIẾN TRÚC CÒN LẠI
+        else {
+            if (img && img.complete && img.naturalWidth !== 0) {
+                ctx.drawImage(img, px, py - offsetY, targetW, targetH); 
+            } else { 
+                ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+                ctx.fillRect(px, py - offsetY, targetW, targetH);
+                ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
+                ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
+            }
+        }
+
+        ctx.restore();
     }
 
-    ctx.restore();
-}
-
-    function drawCooldownOrReadyUI(b, px, py, visualH, offsetY) {
+    function drawCooldownOrReadyUI(b, px, py, targetH, offsetY) {
         if (b.team !== 0 || gamePhase !== 'COMBAT') return;
         const targetTypes = ['MAGE_TOWER', 'TREBUCHET', 'JAVELIN_HUT', 'CYCLOP_CAVE'];
         if (!targetTypes.includes(b.type)) return;
@@ -1037,8 +1083,11 @@
                 let isBeingDragged = (draggingBuilding === b);
                 drawBuildingSprite(b, px, py, isBeingDragged);
                 
-                let visualH = (STATS[b.type].vH || b.h) * C;
-                let offsetY = visualH - (b.h * C);
+                let targetW = b.w * C;
+                let targetH = b.h * C;
+                let img = loadedImages[b.type];
+                if (img && img.complete && img.naturalWidth !== 0) targetH = targetW * (img.naturalHeight / img.naturalWidth);
+                let offsetY = targetH - (b.h * C);
 
                 if (!isBeingDragged && (b === selectedEntity || (globalAttackMode === b.type && b.team === 0))) { 
                     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; 
@@ -1052,14 +1101,18 @@
                 }
 
                 if (!isBeingDragged) {
-                    drawCooldownOrReadyUI(b, px, py, visualH, offsetY);
+                    drawCooldownOrReadyUI(b, px, py, targetH, offsetY);
                 }
             } catch(e) {}
         });
 
+        // --- PREVIEW KHI ĐANG DRAG: NHẤC CAO HƠN NGÓN TAY 2 Ô GRID (LIFT-DRAG) ---
         if (draggingBuilding !== null && gamePhase === 'PREP') {
+            let fingerOffsetY = -2 * C;
+            let targetWy = mouseWy + fingerOffsetY;
+
             let previewGx = Math.floor(mouseWx / C);
-            let previewGy = Math.floor(mouseWy / C);
+            let previewGy = Math.floor(targetWy / C);
             let isValid = checkPlacementValid(draggingBuilding.type, previewGx, previewGy, draggingBuilding);
 
             let previewPx = previewGx * C;
@@ -1067,7 +1120,7 @@
             let previewW = STATS[draggingBuilding.type].w * C;
             let previewH = STATS[draggingBuilding.type].h * C;
 
-            ctx.fillStyle = isValid ? 'rgba(105, 240, 174, 0.4)' : 'rgba(244, 67, 54, 0.4)'; 
+            ctx.fillStyle = isValid ? 'rgba(105, 240, 174, 0.35)' : 'rgba(244, 67, 54, 0.35)'; 
             ctx.fillRect(previewPx, previewPy, previewW, previewH);
             ctx.strokeStyle = isValid ? '#69f0ae' : '#f44336';
             ctx.lineWidth = 2;
@@ -1084,12 +1137,11 @@
             }
 
             ctx.save();
-            ctx.globalAlpha = 0.85;
-            drawBuildingSprite(draggingBuilding, previewPx, previewPy, false);
+            ctx.globalAlpha = 0.9;
+            drawBuildingSprite(draggingBuilding, previewPx, previewPy - 4, false);
             ctx.restore();
         }
 
-        // --- VẼ XÁC CHẾT FADE OUT (DỌN DẸP CHIẾN TRƯỜNG) ---
         deadUnits.forEach(d => {
             let img = loadedImages[d.type];
             let alpha = Math.max(0, d.life / d.maxLife);
@@ -1106,7 +1158,7 @@
             ctx.restore();
         });
 
-        // --- Y-SORTING UNITS (NHÂN VẬT VỚI BỘ ANIMATION IDLE / MOVE / ATTACK) ---
+        // --- Y-SORTING UNITS (ANIMATION IDLE CHÂN CHẠM ĐẤT TỰ NHIÊN) ---
         let sortedUnits = [...units].sort((a, b) => a.y - b.y);
 
         sortedUnits.forEach(u => {
@@ -1116,26 +1168,26 @@
             ctx.save();
             if (u.team === 1) ctx.filter = 'sepia(1) saturate(5) hue-rotate(310deg)';
 
-            // Tính toán biến dạng và dịch chuyển theo trạng thái (Animation States)
             let bounceY = 0;
             let rot = 0;
             let scaleX = 1;
             let scaleY = 1;
 
             if (u.state === 'MOVE') {
-                // Nhún nhảy và nghiêng mình khi chạy
-                bounceY = Math.abs(Math.sin(u.walkCycle * 4)) * -4;
-                rot = Math.sin(u.walkCycle * 2) * 0.15;
+                bounceY = Math.abs(Math.sin(u.walkCycle * 4)) * -3;
+                rot = Math.sin(u.walkCycle * 2) * 0.12;
             } else if (u.state === 'ATTACK') {
-                // Lunge & strike (Lao tới trước bổ đòn)
                 let atkProgress = u.attackTimer > 0 ? (u.attackTimer / 0.35) : 0;
-                let lunge = Math.sin(atkProgress * Math.PI) * 7;
+                let lunge = Math.sin(atkProgress * Math.PI) * 6;
                 bounceY = -Math.abs(lunge);
                 scaleX = 1.15;
                 scaleY = 0.85;
             } else {
-                // IDLE: Thở nhẹ
-                bounceY = Math.sin(Date.now() / 300 + u.x) * 1.5;
+                // IDLE: Chỉ co bóp nhẹ nhàng bằng Squash & Stretch, giữ chân chạm đất
+                let breath = Math.sin(Date.now() / 400 + u.x * 0.5);
+                scaleY = 1 + breath * 0.03;
+                scaleX = 1 - breath * 0.02;
+                bounceY = 0;
             }
 
             let drawW = u.size * 4;
@@ -1178,17 +1230,16 @@
             }
         });
 
-        // ĐẠN PHÁP SƯ BAY VỚI ANIM PHẬP PHỒNG
         mortars.forEach(m => { 
             if (!isHiddenInFog(m.x, m.y, m.team)) { 
                 let img = loadedImages['U_Mage_01_bullet'];
-                let pulse = 1 + Math.sin(Date.now() / 80) * 0.2; // Phập phồng nhanh khi bay
+                let pulse = 1 + Math.sin(Date.now() / 80) * 0.2;
                 let renderSize = 16 * pulse;
 
                 if (img && img.complete && img.naturalWidth !== 0) {
                     ctx.save();
                     ctx.translate(m.x, m.y - m.z);
-                    ctx.rotate(Date.now() / 150); // Xoay tròn ma thuật
+                    ctx.rotate(Date.now() / 150);
                     ctx.drawImage(img, -renderSize/2, -renderSize/2, renderSize, renderSize);
                     ctx.restore();
                 } else {
