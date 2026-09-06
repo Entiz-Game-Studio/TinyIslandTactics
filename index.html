@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tiny Island Tactics</title>
+    <style>
+        body { background-color: #1a1510; color: #fff3e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin: 0; padding: 0; height: 100vh; overflow: hidden; user-select: none; -webkit-user-select: none; }
+        #gameArea { position: absolute; top: 0; left: 0; width: 100%; bottom: 70px; background: #000; overflow: hidden; touch-action: none; }
+        canvas { display: block; width: 100%; height: 100%; touch-action: none; background: #4fc3f7; }
+        
+        #uiPanel { position: fixed; bottom: 0; left: 0; width: 100%; height: 70px; background: #3e2723; border-top: 3px solid #fbc02d; box-shadow: 0 -2px 10px rgba(0,0,0,0.5); padding: 5px; z-index: 10; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
+        .top-info { display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; padding: 0 10px; margin-bottom: 3px; color: #ffeb3b; text-shadow: 1px 1px 2px #000; }
+        
+        #centerMsg { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 5px #000, 0 0 15px #fbc02d; pointer-events: none; z-index: 100; transition: opacity 0.5s; width: 90%; line-height: 1.4; background: rgba(62, 39, 35, 0.85); padding: 15px; border: 2px solid #fbc02d; border-radius: 10px; opacity: 1; }
+
+        .btn-horizontal-row { display: flex; gap: 4px; justify-content: center; overflow-x: auto; padding-bottom: 2px; height: 42px;}
+        
+        .build-btn { background: #5d4037; color: #fff3e0; border: 2px solid #8d6e63; font-size: 11px; font-weight: bold; border-radius: 6px; touch-action: none; cursor: pointer; display: none; position: relative; overflow: hidden; flex: 1; min-width: 60px; height: 100%; box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
+        .build-btn:active { background: #3e2723; border-color: #fbc02d; }
+        .btn-bg-progress { position: absolute; bottom: 0; left: 0; height: 100%; width: 0%; background: rgba(251, 192, 45, 0.3); z-index: 1; transition: width 0.1s linear; }
+        .btn-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; pointer-events: none; text-transform: uppercase; text-shadow: 1px 1px 2px #000;}
+        .ready-txt { font-size: 10px; color: #69f0ae; margin-top: 1px; font-weight: bold; }
+
+        #btnBigReady, #btnSaveFormation { display: flex; background: #fbc02d; color: #3e2723; border: 2px solid #f57f17; font-size: 16px; align-items: center; justify-content: center; width: 80%; max-width: 300px; margin: 0 auto; height: 100%; cursor: pointer; border-radius: 8px; font-weight: bold; text-shadow: none; box-shadow: 0 4px 0 #f57f17;}
+        #btnBigReady:active, #btnSaveFormation:active { transform: translateY(4px); box-shadow: 0 0 0 transparent; }
+        #btnSaveFormation { display: none; }
+
+        #draftOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 200; flex-direction: column; align-items: center; justify-content: center; overflow-y: auto; }
+        .draft-title { font-size: 22px; color: #fbc02d; margin-bottom: 15px; font-weight: bold; text-shadow: 0 0 10px #f57f17; margin-top: 20px;}
+        .card-container { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; padding: 10px; max-width: 600px; }
+        .draft-card { background: #4e342e; border: 2px solid #8d6e63; border-radius: 12px; padding: 10px; width: 110px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+        .draft-card:hover { border-color: #fbc02d; transform: scale(1.05); background: #5d4037; }
+        .draft-card h3 { margin: 0 0 8px 0; font-size: 13px; color: #fbc02d; text-align: center; text-shadow: 1px 1px 1px #000; }
+        .draft-card p { font-size: 10px; margin: 0; color: #d7ccc8; line-height: 1.3; text-align: center;}
+        .card-icon { font-size: 26px; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="centerMsg">CLICK READY TO DEPLOY</div>
+
+    <div id="gameArea">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="uiPanel">
+        <div class="top-info">
+            <div id="phaseText"><span id="phasePrefix">⏳ PREP: </span><span id="timerTxt">--:--</span> <span id="draftSpan" style="display:none">| Spell: <span id="draftTxt" style="color:#69f0ae;">30</span>s</span></div>
+            <div style="color:#ffeb3b;">🎯 Archer Accuracy: <span id="accTxt">20</span>%</div>
+        </div>
+        
+        <div class="btn-horizontal-row" id="btnGroup">
+            <div id="btnBigReady" onclick="startPrepPhase()">READY</div>
+            <div id="btnSaveFormation" onclick="startCombatPhase()">SAVE & BATTLE</div>
+
+            <div class="build-btn" id="btnMAGE_TOWER" onclick="selectGlobalAttack('MAGE_TOWER')" style="border-color: #ffb300;">
+                <div class="btn-bg-progress" id="progMAGE_TOWER" style="background: rgba(255, 179, 0, 0.4);"></div>
+                <div class="btn-content">MAGE TOWER<div class="ready-txt" id="readyMAGE_TOWER">Ready: 0/1</div></div>
+            </div>
+            <div class="build-btn" id="btnTREBUCHET" onclick="selectGlobalAttack('TREBUCHET')">
+                <div class="btn-bg-progress" id="progTREBUCHET"></div>
+                <div class="btn-content">TREBUCHET<div class="ready-txt" id="readyTREBUCHET">Ready: 0/3</div></div>
+            </div>
+            <div class="build-btn" id="btnJAVELIN_HUT" onclick="selectGlobalAttack('JAVELIN_HUT')">
+                <div class="btn-bg-progress" id="progJAVELIN_HUT"></div>
+                <div class="btn-content">JAVELIN HUT<div class="ready-txt" id="readyJAVELIN_HUT">Ready: 0/3</div></div>
+            </div>
+            <div class="build-btn" id="btnCYCLOP_CAVE" onclick="selectGlobalAttack('CYCLOP_CAVE')">
+                <div class="btn-bg-progress" id="progCYCLOP_CAVE"></div>
+                <div class="btn-content">CYCLOP CAVE<div class="ready-txt" id="readyCYCLOP_CAVE">Ready: 0/1</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="draftOverlay">
+        <div class="draft-title">CHOOSE A RUNE OR SPELL:</div>
+        <div class="card-container" id="draftOptions"></div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameArea = document.getElementById('gameArea');
+
+    const ASSET_PATHS = {
+        'CASTLE_BASE': 'assets/T_Castle_Base.png',
+        'ARCHER_BASE': 'assets/T_Archer_Base.png', 
+        'BALLISTA_BASE': 'assets/T_Ballista_Base.png',
+        'WATCHTOWER': 'assets/T_Bunker.png',
+        'TREBUCHET': 'assets/T_Trebuchet.png',
+        'JAVELIN_HUT': 'assets/B_JavelinHut.png',
+        'CYCLOP_CAVE': 'assets/B_CyclopCave.png',
+        'U_MAGE_01': 'assets/U_Mage_01.png',
+        'U_ARCHER': 'assets/U_Archer.png',
+        'BALLISTA_TOP': 'assets/T_Ballista_Top.png',
+        'DIRIGIBLE': 'assets/U_balloon.png',
+        'TROLL_JAVELIN': 'assets/U_TrollJavelin.png',
+        'CYCLOP': 'assets/U_Cyclop.png',
+        'PROJ_ARCHER': 'assets/T_Archer_Arrow.png',
+        'PROJ_TREBUCHET': 'assets/T_Trebuchet_Bullet.png',
+        'PROJ_BALLISTA': 'assets/T_Ballista_Arrow.png',
+        'PROJ_JAVELIN': 'assets/U_TrollJavelin_Javelin.png',
+        'PROJ_BUNKER': 'assets/T_Bunker_Bullet.png',
+        'U_Mage_01_bullet': 'assets/U_Mage_01_bullet.png'
+    };
+    const loadedImages = {};
+    function preloadAssets() {
+        for (const [key, path] of Object.entries(ASSET_PATHS)) {
+            let img = new Image(); img.src = path;
+            img.onload = () => { loadedImages[key] = img; };
+            img.onerror = () => { console.warn(`Missing asset: ${path}`); };
+        }
+    }
+    preloadAssets();
+
+    const C = 16; const W = 36; const ISLAND_H = 24; const SEA_H = 16; const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; 
+    const ENEMY_Y_START = 0; const SEA_Y_START = 24; const PLAYER_Y_START = 40; 
+    let fog = Array(W).fill().map(() => Array(TOTAL_H).fill(true));
+    
+    const UNIT_STATS = { CYCLOP: { buildTime: 30, maxCap: 1 }, TROLL_JAVELIN: { buildTime: 10, maxCap: 3 } };
+    
+    const STATS = {
+        MAGE_TOWER:   { w: 6, h: 3, vH: 4, hp: 5000, reload: 20, atkRange: 0 }, 
+        TREBUCHET:    { w: 3, h: 4, vH: 4, hp: 800, reload: 30, atkRange: 0 }, 
+        ARCHER_TOWER: { w: 3, h: 2, vH: 3, hp: 1000, reload: 0.08, atkRange: 6 * C }, 
+        BALLISTA:     { w: 2, h: 2, hp: 1500, reload: 5, atkRange: 10 * C }, 
+        WATCHTOWER:   { w: 2, h: 2, hp: 2500, reload: 0.5, atkRange: 6 * C }, 
+        JAVELIN_HUT:  { w: 3, h: 3, hp: 2000, reload: 0, atkRange: 0 }, 
+        CYCLOP_CAVE:  { w: 4, h: 2, vH: 3, hp: 3000, reload: 0, atkRange: 0 } 
+    };
+
+    let camX = (W * C) / 2; let camY = (TOTAL_H * C) / 2; 
+    let defaultZoom = 0.65;
+    let camZoom = defaultZoom; 
+
+    function resizeCanvas() { 
+        canvas.width = gameArea.clientWidth || window.innerWidth; 
+        canvas.height = gameArea.clientHeight || window.innerHeight; 
+        defaultZoom = Math.min(canvas.width / ((W + 2) * C), canvas.height / ((TOTAL_H - 2) * C));
+        camZoom = Math.max(defaultZoom, camZoom);
+    }
+    window.addEventListener('resize', resizeCanvas); 
+    resizeCanvas();
+    camZoom = defaultZoom;
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomFactor = 1.1;
+        let newZoom = e.deltaY < 0 ? camZoom * zoomFactor : camZoom / zoomFactor;
+        newZoom = Math.max(defaultZoom, Math.min(2.5, newZoom));
+        
+        if (newZoom !== camZoom) {
+            let rect = canvas.getBoundingClientRect();
+            let mouseX = e.clientX - rect.left;
+            let mouseY = e.clientY - rect.top;
+            
+            let wx = (mouseX - canvas.width / 2) / camZoom + camX;
+            let wy = (mouseY - canvas.height / 2) / camZoom + camY;
+            
+            camZoom = newZoom;
+            camX = wx - (mouseX - canvas.width / 2) / camZoom;
+            camY = wy - (mouseY - canvas.height / 2) / camZoom;
+            
+            camX = Math.max(0, Math.min(W * C, camX));
+            camY = Math.max(0, Math.min(TOTAL_H * C, camY));
+        }
+    }, { passive: false });
+
+    function getWorldCoords(clientX, clientY) { 
+        const rect = canvas.getBoundingClientRect(); 
+        let mx = clientX - rect.left; let my = clientY - rect.top; 
+        return { wx: (mx - canvas.width / 2) / camZoom + camX, wy: (my - canvas.height / 2) / camZoom + camY }; 
+    }
+
+    let gamePhase = 'IDLE'; let prepTimer = 30; let gameTime = 360; let draftTimer = 30; let isDrafting = false; 
+    let aiAttackTimer = 10; let idCounter = 0; let globalAttackMode = null;
+    let playerRapidTimer = 0; let aiRapidTimer = 0; let playerRepairTimer = 0; let playerRepairRate = 0; let aiRepairTimer = 0; let aiRepairRate = 0;
+    let playerAamHitRate = 0.20; let aiAamHitRate = 0.20; let playerHqCdMod = 1.0; let aiHqCdMod = 1.0; let playerHqDmgMod = 1.0; let aiHqDmgMod = 1.0;
+    let playerMechRageTimer = 0; let aiMechRageTimer = 0; let playerMechHealTimer = 0; let aiMechHealTimer = 0; let playerCmEvadeRate = 0; let aiCmEvadeRate = 0; 
+    let isGameOver = false; let selectedEntity = null;
+    let buildings = []; let missiles = []; let mortars = []; let interceptors = []; let tracers = []; let particles = []; let floatingTexts = []; let shockwaves = []; let units = []; let deadUnits = []; let porters = []; let activeMissions = []; let decals = []; 
+    let isPanning = false; let lastPan = {x: 0, y: 0}; 
+    let draggingBuilding = null;
+    let mouseWx = 0, mouseWy = 0;
+
+    function isFogged(gx, gy) { if (isNaN(gx) || isNaN(gy) || gx < 0 || gx >= W || gy < 0 || gy >= TOTAL_H) return false; return fog[gx] && fog[gx][gy] !== undefined ? fog[gx][gy] : false; }
+    function isHiddenInFog(x, y, team) { return team === 0 ? false : isFogged(Math.floor(x / C), Math.floor(y / C)); }
+    function updateStatsUI() { if (gamePhase === 'COMBAT') { let elAcc = document.getElementById('accTxt'); if (elAcc) elAcc.innerText = (playerAamHitRate * 100).toFixed(0); } }
+
+    let terrainTrees = [];
+    function generateTreesForIsland(startY) { for(let i=0; i<25; i++) terrainTrees.push({ gx: 2 + Math.floor(Math.random() * (W-4)), gy: startY + 2 + Math.floor(Math.random() * (ISLAND_H-4)) }); }
+    generateTreesForIsland(ENEMY_Y_START); generateTreesForIsland(PLAYER_Y_START);
+
+    class Building {
+        constructor(gx, gy, type, team) {
+            this.id = idCounter++; this.gx = gx; this.gy = gy; this.type = type; this.team = team;
+            this.w = STATS[type].w; this.h = STATS[type].h; this.hp = STATS[type].hp; this.maxHp = this.hp;
+            this.reloadTime = STATS[type].reload; this.currentReload = 0;
+            this.cx = this.gx * C + (this.w * C)/2; this.cy = this.gy * C + (this.h * C)/2;
+            this.atkRange = STATS[type].atkRange; this.targetRange = this.atkRange > 0 ? this.atkRange + 10 * C : 0;
+            this.angle = -Math.PI/2; this.muzzleTimer = 0; this.spawnTimer = 0; this.destroyed = false; 
+            this.lastShooterIdx = 0;
+        }
+    }
+    class Missile {
+        constructor(sx, sy, tgx, tgy, team) {
+            this.x = sx; this.y = sy; this.tx = tgx * C + C/2; this.ty = tgy * C + C/2;
+            this.tgx = tgx; this.tgy = tgy; this.team = team; this.hp = 100; this.speed = 100;
+            let dx = this.tx - this.x; let dy = this.ty - this.y; let dist = Math.hypot(dx, dy) || 1;
+            this.vx = (dx / dist) * this.speed; this.vy = (dy / dist) * this.speed; this.angle = Math.atan2(dy, dx);
+        }
+    }
+    class MortarShell {
+        constructor(sx, sy, tx, ty, team, dmgMod) {
+            this.sx = sx; this.sy = sy; this.tx = tx; this.ty = ty; this.team = team; this.dmgMod = dmgMod;
+            this.dist = Math.hypot(tx-sx, ty-sy); this.speed = 180;
+            this.totalTime = Math.max(0.1, this.dist / this.speed); this.elapsed = 0; this.x = sx; this.y = sy; this.z = 0;
+        }
+        update(dt) { 
+            this.elapsed += dt; 
+            let t = this.elapsed / this.totalTime; 
+            if (t >= 1) return true; 
+            this.x = this.sx + (this.tx - this.sx) * t; 
+            this.y = this.sy + (this.ty - this.sy) * t; 
+            this.z = Math.sin(t * Math.PI) * (this.dist * 0.5); 
+            return false; 
+        }
+    }
+    class Unit {
+        constructor(x, y, type, team, homePort = null) {
+            this.x = x; this.y = y; this.type = type; this.team = team; this.state = 'IDLE'; 
+            this.walkCycle = Math.random() * 10;
+            this.homePort = homePort; this.mission = null; this.deployed = false; this.boardTarget = null; this.healTick = 0;
+            this.attackTimer = 0; // Để render anim đánh
+            if(type === 'CYCLOP') { 
+                this.hp = 3000; this.maxHp = 3000; this.speed = 20; 
+                this.atkRange = 1.6 * C; this.reload = 1.0; this.dmg = 250; this.aoe = 2 * C; this.size = 14; 
+            } else if(type === 'TROLL_JAVELIN') { 
+                this.hp = 600; this.maxHp = 600; this.speed = 26; 
+                this.atkRange = 4.5 * C; // Troll phóng lao tầm xa[cite: 1]
+                this.reload = 0.8; this.dmg = 50; this.aoe = 0; this.size = 7; 
+            } 
+            this.viewRange = this.atkRange + 3 * C; this.currentReload = 0; this.angle = 0;
+        }
+    }
+    class Porter {
+        constructor(sx, sy, team) { this.x = sx; this.y = sy; this.team = team; this.hp = 1150; this.maxHp = 1150; this.speed = 60; this.state = 'FLYING_TO_PORT'; this.cargo = []; this.tx = 0; this.ty = 0; this.angle = -Math.PI/2; this.mission = null; }
+    }
+
+    function createGradientCrater(x, y, r) { decals.push({type: 'gradient', x: x, y: y, r: r, life: 8, maxLife: 8}); }
+    function setupAIFullDefenses() {
+        buildings.push(new Building(15, 2, 'MAGE_TOWER', 1));
+        let prepInventoryAI = { ARCHER_TOWER: 7, BALLISTA: 10, WATCHTOWER: 6, TREBUCHET: 3, JAVELIN_HUT: 1, CYCLOP_CAVE: 1 };
+        for (const [type, count] of Object.entries(prepInventoryAI)) {
+            for(let i=0; i<count; i++) {
+                let overlap = true; let tries = 0; let candidateX, candidateY;
+                while(overlap && tries < 500) { candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); candidateY = ENEMY_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); tries++; }
+                if (!overlap) buildings.push(new Building(candidateX, candidateY, type, 1));
+            }
+        }
+    }
+    setupAIFullDefenses();
+    function showTextMsg(msg) { let el = document.getElementById('centerMsg'); el.innerHTML = msg; el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 2500); }
+
+    const ALL_CARDS = [
+        { id: 'CM_EVADE', icon: '💨', name: 'Wind Shield', desc: 'Monsters get +3%\ndodge vs arrows.', req: null, weight: 23 },
+        { id: 'REP_40', icon: '💖', name: 'Restoration', desc: 'Heals 40% HP of all\nbuildings over 5s.', req: null, weight: 12 },
+        { id: 'RAPID', icon: '⚡', name: 'Haste Spell', desc: 'Increases attack speed\nby 30% for 15s.', req: null, weight: 12 },
+        { id: 'AAM_ACC', icon: '👁️', name: 'Eagle Eye', desc: 'Increases Ballista\naccuracy by 5%.', req: null, weight: 12 },
+        { id: 'HQ_CD', icon: '⏳', name: 'Mage Focus', desc: 'Reduces Mage\ncooldown by 5%.', req: 'MAGE_TOWER', weight: 12 },
+        { id: 'HQ_DMG', icon: '🔥', name: 'Arcane Power', desc: 'Increases Magic\ndamage by 5%.', req: 'MAGE_TOWER', weight: 12 },
+        { id: 'MECH_RAGE', icon: '💢', name: 'Bloodlust', desc: '+50% Damage for troops\non enemy island (5s).', req: null, weight: 6 },
+        { id: 'MECH_HEAL', icon: '✨', name: 'Holy Light', desc: 'Heals 50% HP for troops\non enemy island (5s).', req: null, weight: 6 },
+        { id: 'MECH', icon: '🧌', name: 'Summon 3 Trolls', desc: 'Ranged javelins.\nFast speed.', req: 'JAVELIN_HUT', weight: 3 },
+        { id: 'TITAN', icon: '🪨', name: 'Summon 1 Cyclop', desc: 'Tanky.\nAoE damage.', req: 'CYCLOP_CAVE', weight: 2 },
+        { id: 'FREE_TREBUCHET', icon: '🎯', name: 'Build Trebuchet', desc: 'Builds a random\nTrebuchet.', req: null, weight: 1 },
+        { id: 'FREE_JAVELIN_HUT', icon: '⛺', name: 'Build Javelin Hut', desc: 'Builds a random\nJavelin Hut.', req: null, weight: 1 },
+        { id: 'FREE_CYCLOP_CAVE', icon: '🏔️', name: 'Build Cyclop Cave', desc: 'Builds a random\nCyclop Cave.', req: null, weight: 1 }
+    ];
+
+    function getWeightedPicks(validCards, count) { let pool = []; validCards.forEach(c => { let w = c.tempWeight !== undefined ? c.tempWeight : (c.weight || 1); for(let i=0; i<w; i++) pool.push(c); }); let picks = []; while(picks.length < count && pool.length > 0) { let idx = Math.floor(Math.random() * pool.length); let chosen = pool[idx]; picks.push(chosen); pool = pool.filter(c => c.id !== chosen.id); } return picks; }
+    function showDraft() { isDrafting = true; let myJavelinHuts = buildings.filter(b => b.team === 0 && b.type === 'JAVELIN_HUT' && b.hp > 0).length; let myCyclopCaves = buildings.filter(b => b.team === 0 && b.type === 'CYCLOP_CAVE' && b.hp > 0).length; let validCards = ALL_CARDS.filter(c => { if(c.req === 'JAVELIN_HUT' && !myJavelinHuts) return false; if(c.req === 'CYCLOP_CAVE' && !myCyclopCaves) return false; return true; }); validCards.forEach(c => c.tempWeight = c.weight); let picks = getWeightedPicks(validCards, 3); let container = document.getElementById('draftOptions'); container.innerHTML = ''; picks.forEach(c => { container.innerHTML += `<div class="draft-card" onclick="pickDraft('${c.id}')"><div class="card-icon">${c.icon}</div><h3>${c.name}</h3><p>${c.desc.replace('\n', '<br>')}</p></div>`; }); document.getElementById('draftOverlay').style.display = 'flex'; }
+    function pickDraft(id) {
+        document.getElementById('draftOverlay').style.display = 'none'; isDrafting = false;
+        if (id === 'TITAN') { let port = buildings.find(b => b.team===0 && b.type==='CYCLOP_CAVE'); if(port) units.push(new Unit(port.cx, port.cy + 10, 'CYCLOP', 0, port)); showTextMsg("Cyclop summoned!"); } 
+        else if (id === 'MECH') { 
+            let port = buildings.find(b => b.team===0 && b.type==='JAVELIN_HUT'); 
+            if(port) for(let i=0; i<3; i++) units.push(new Unit(port.cx + (Math.random()-0.5)*40, port.cy + 10 + (Math.random()-0.5)*15, 'TROLL_JAVELIN', 0, port)); 
+            showTextMsg("Trolls summoned!"); 
+        }
+        else if (id === 'RAPID') { playerRapidTimer = 15; showTextMsg("Haste Spell activated (15s)!"); }
+        else if (id === 'REP_40') { playerRepairTimer = 5; playerRepairRate = 0.40/5; showTextMsg("Restoring buildings..."); }
+        else if (id === 'AAM_ACC') { playerAamHitRate += 0.05; updateStatsUI(); showTextMsg("Eagle Eye activated!"); }
+        else if (id === 'HQ_CD') { playerHqCdMod *= 0.95; showTextMsg("Mage casts faster!"); }
+        else if (id === 'HQ_DMG') { playerHqDmgMod *= 1.05; showTextMsg("Arcane power increased!"); }
+        else if (id === 'MECH_RAGE') { playerMechRageTimer = 5; showTextMsg("Troops gained Bloodlust!"); }
+        else if (id === 'MECH_HEAL') { playerMechHealTimer = 5; showTextMsg("Holy Light heals troops!"); }
+        else if (id === 'CM_EVADE') { playerCmEvadeRate += 0.03; showTextMsg("Monsters got Wind Shield!"); }
+        else if (id.startsWith('FREE_')) { let type = id.replace('FREE_', ''); let overlap = true; let tries = 0; let candidateX, candidateY; while(overlap && tries < 500) { candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); candidateY = PLAYER_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); tries++; } if (!overlap) { buildings.push(new Building(candidateX, candidateY, type, 0)); showTextMsg("Building constructed!"); } else showTextMsg("No space to build!"); }
+    }
+
+    function startPrepPhase() {
+        document.getElementById('btnBigReady').style.display = 'none'; document.getElementById('btnSaveFormation').style.display = 'flex'; showTextMsg("DRAG AND DROP TO DEPLOY"); gamePhase = 'PREP'; prepTimer = 30;
+        buildings.push(new Building(15, 51, 'MAGE_TOWER', 0)); 
+        let aamX = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30]; aamX.forEach(x => buildings.push(new Building(x, 42, 'BALLISTA', 0))); 
+        let ciwsX = [3, 7, 11, 15, 19, 23, 27]; ciwsX.forEach(x => buildings.push(new Building(x, 45, 'ARCHER_TOWER', 0))); 
+        let bunkerX = [4, 10, 15, 20, 25, 30]; bunkerX.forEach(x => buildings.push(new Building(x, 48, 'WATCHTOWER', 0)));
+        buildings.push(new Building(8, 54, 'TREBUCHET', 0)); buildings.push(new Building(17, 55, 'TREBUCHET', 0)); buildings.push(new Building(26, 54, 'TREBUCHET', 0)); 
+        buildings.push(new Building(7, 58, 'JAVELIN_HUT', 0)); buildings.push(new Building(25, 57, 'CYCLOP_CAVE', 0)); 
+    }
+
+    function startCombatPhase() {
+        draggingBuilding = null;
+        gamePhase = 'COMBAT'; 
+        document.getElementById('btnSaveFormation').style.display = 'none';
+        document.getElementById('btnMAGE_TOWER').style.display = 'flex'; document.getElementById('btnTREBUCHET').style.display = 'flex'; document.getElementById('btnJAVELIN_HUT').style.display = 'flex'; document.getElementById('btnCYCLOP_CAVE').style.display = 'flex';
+        document.getElementById('phasePrefix').innerText = `⚔️ COMBAT: `; document.getElementById('timerTxt').innerText = `06:00`; document.getElementById('draftSpan').style.display = 'inline';
+        updateStatsUI(); showTextMsg("⚔️ BATTLE START!");
+        buildings.forEach(b => { if (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') b.spawnTimer = 0; if (b.type === 'TREBUCHET') b.currentReload = b.reloadTime; if (b.type === 'MAGE_TOWER') b.currentReload = 0; });
+    }
+
+    function checkPlacementValid(type, gx, gy, ignoreBuilding = null) { 
+        if (gx < 2 || gx + STATS[type].w > W - 2 || gy < PLAYER_Y_START + 2 || gy + STATS[type].h > PLAYER_Y_START + ISLAND_H - 2) return false; 
+        return !buildings.some(b => { 
+            if (b.hp <= 0 || b === ignoreBuilding) return false; 
+            return !(gx + STATS[type].w <= b.gx || gx >= b.gx + b.w || gy + STATS[type].h <= b.gy || gy >= b.gy + b.h); 
+        }); 
+    }
+
+    function selectGlobalAttack(type) {
+        if (gamePhase !== 'COMBAT' || isDrafting) return;
+        selectedEntity = null; globalAttackMode = type;
+        if (type === 'MAGE_TOWER') showTextMsg(`🔥 Mage selected. Tap Enemy Island to cast Arcane Burst!`); 
+        else if (type === 'TREBUCHET') showTextMsg(`🔥 ALL Trebuchets selected. Tap Enemy Island to throw Fireballs!`); 
+        else showTextMsg(`🔥 Barracks selected. Tap Enemy Island to deploy troops!`);
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || isGameOver || isDrafting) return;
+        let coords = getWorldCoords(e.clientX, e.clientY); 
+        let gx = Math.floor(coords.wx / C); 
+        let gy = Math.floor(coords.wy / C);
+
+        if (draggingBuilding !== null) {
+            if (gamePhase === 'PREP') { 
+                if (checkPlacementValid(draggingBuilding.type, gx, gy, draggingBuilding)) { 
+                    draggingBuilding.gx = gx;
+                    draggingBuilding.gy = gy;
+                    draggingBuilding.cx = gx * C + (draggingBuilding.w * C)/2;
+                    draggingBuilding.cy = gy * C + (draggingBuilding.h * C)/2;
+                    showTextMsg(`Đã đặt ${draggingBuilding.type}`);
+                } else {
+                    showTextMsg("Vị trí vướng hoặc không hợp lệ!");
+                }
+            }
+            draggingBuilding = null;
+            return; 
+        }
+
+        if (gy >= PLAYER_Y_START && gy < PLAYER_Y_START + ISLAND_H) {
+            let clickedB = buildings.find(b => b.team === 0 && b.hp > 0 && gx >= b.gx && gx < b.gx+b.w && gy >= b.gy && gy < b.gy+b.h);
+            if (clickedB) { 
+                if (gamePhase === 'PREP') { 
+                    draggingBuilding = clickedB;
+                    showTextMsg(`Đang nhấc ${clickedB.type} - Chạm ô mới để thả`);
+                    return; 
+                } 
+                if (gamePhase === 'COMBAT') { 
+                    globalAttackMode = null; 
+                    selectedEntity = clickedB; 
+                    showTextMsg("Building selected!"); 
+                    return; 
+                } 
+            } 
+        }
+
+        if (gamePhase === 'COMBAT' && gy >= ENEMY_Y_START && gy < ENEMY_Y_START + ISLAND_H) {
+            let mode = globalAttackMode || (selectedEntity ? selectedEntity.type : null);
+            if (mode === 'MAGE_TOWER') {
+                let hq = selectedEntity || buildings.find(b => b.team === 0 && b.type === 'MAGE_TOWER' && b.hp > 0);
+                if (hq && hq.currentReload <= 0) { 
+                    hq.currentReload = hq.reloadTime * playerHqCdMod; 
+                    // Bắn trực tiếp từ đầu gậy phép thuật
+                    let visualH = (STATS['MAGE_TOWER'].vH || hq.h) * C;
+                    let offsetY = visualH - (hq.h * C);
+                    let staffHeadX = (hq.gx * C + (hq.w * C) / 2) + 6;
+                    let staffHeadY = (hq.gy * C - offsetY - 10 + C) - 18;
+                    mortars.push(new MortarShell(staffHeadX, staffHeadY, coords.wx, coords.wy, 0, playerHqDmgMod)); 
+                }
+            } else if (mode === 'TREBUCHET') {
+                if (selectedEntity && selectedEntity.currentReload > 0) { showTextMsg("Trebuchet is reloading, wait!"); } 
+                else {
+                    let shooters = selectedEntity ? [selectedEntity] : buildings.filter(b => b.team === 0 && b.type === 'TREBUCHET' && b.currentReload <= 0 && b.hp > 0);
+                    if (shooters.length > 0) { 
+                        shooters.forEach(s => { 
+                            s.currentReload = s.reloadTime; 
+                            missiles.push(new Missile(s.cx, s.cy, Math.floor(coords.wx/C), Math.floor(coords.wy/C), 0)); 
+                        }); 
+                        showTextMsg(`🔥 Threw ${shooters.length} Fireballs!`); 
+                    } else { showTextMsg("No Trebuchet is ready!"); }
+                }
+            } else if (mode === 'JAVELIN_HUT' || mode === 'CYCLOP_CAVE') {
+                let ports = selectedEntity ? [selectedEntity] : buildings.filter(b => b.team === 0 && b.type === mode && b.hp > 0);
+                ports.forEach(port => { 
+                    let myIdle = units.filter(u => u.team === 0 && !u.deployed && u.homePort === port && u.state !== 'BOARDING_AUTO'); 
+                    if (myIdle.length > 0) { 
+                        let mission = { mechPort: port, tx: coords.wx, ty: coords.wy, team: 0, expected: myIdle.length }; 
+                        activeMissions.push(mission); 
+                        myIdle.forEach(u => { u.state = 'BOARDING_AUTO'; u.boardTarget = port; u.mission = mission; }); 
+                        let p = new Porter(port.cx, (TOTAL_H * C) + 100, 0); p.mission = mission; p.tx = port.cx; p.ty = port.cy; p.state = 'FLYING_TO_PORT'; p.angle = Math.atan2(p.ty - p.y, p.tx - p.x); porters.push(p); 
+                    } 
+                });
+            } 
+            globalAttackMode = null; selectedEntity = null; return;
+        }
+        isPanning = true; lastPan = {x: e.clientX, y: e.clientY};
+    });
+
+    window.addEventListener('pointermove', e => { 
+        let coords = getWorldCoords(e.clientX, e.clientY); 
+        mouseWx = coords.wx; mouseWy = coords.wy; 
+        if (isPanning) { 
+            camX -= (e.clientX - lastPan.x)/camZoom; camY -= (e.clientY - lastPan.y)/camZoom; 
+            lastPan = {x: e.clientX, y: e.clientY}; 
+            camX = Math.max(0, Math.min(W * C, camX)); camY = Math.max(0, Math.min(TOTAL_H * C, camY)); 
+        } 
+    });
+    window.addEventListener('pointerup', e => { isPanning = false; });
+    function lerpAngle(a, b, t) { let delta = ((b - a) % (Math.PI * 2)); if (delta > Math.PI) delta -= Math.PI * 2; else if (delta < -Math.PI) delta += Math.PI * 2; return a + delta * t; }
+
+    let lastTick = Date.now();
+    function gameLoop() { try { let now = Date.now(); let dt = (now - lastTick) / 1000; lastTick = now; if(dt > 0.1) dt = 0.1; if (!isGameOver && !isDrafting) updateLogic(dt); draw(); } catch (err) {} requestAnimationFrame(gameLoop); }
+
+    function updateButtonsUI() {
+        if (gamePhase !== 'COMBAT') return;
+        let readyTREBUCHET = buildings.filter(b => b.team === 0 && b.type === 'TREBUCHET' && b.currentReload <= 0).length; document.getElementById('readyTREBUCHET').innerText = `Ready: ${readyTREBUCHET}`; document.getElementById('progTREBUCHET').style.width = readyTREBUCHET > 0 ? "100%" : "0%";
+        let hq = buildings.find(b => b.team === 0 && b.type === 'MAGE_TOWER' && b.hp > 0); document.getElementById('readyMAGE_TOWER').innerText = (hq && hq.currentReload<=0) ? `Ready` : `Loading...`; document.getElementById('progMAGE_TOWER').style.width = (hq && hq.currentReload<=0) ? "100%" : "0%";
+        let readyTroll = units.filter(u => u.team === 0 && u.homePort && u.homePort.type === 'JAVELIN_HUT' && !u.deployed && u.state !== 'BOARDING_AUTO').length; document.getElementById('readyJAVELIN_HUT').innerText = `Trolls: ${readyTroll}`;
+        let readyCyclop = units.filter(u => u.team === 0 && u.homePort && u.homePort.type === 'CYCLOP_CAVE' && !u.deployed && u.state !== 'BOARDING_AUTO').length; document.getElementById('readyCYCLOP_CAVE').innerText = `Cyclops: ${readyCyclop}`;
+    }
+
+    function aiBehavior(dt) {
+        aiAttackTimer -= dt;
+        if (aiAttackTimer <= 0) {
+            aiAttackTimer = 15; 
+            let aiPorts = buildings.filter(b => (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') && b.team === 1 && b.hp > 0);
+            aiPorts.forEach(port => {
+                let aiIdle = units.filter(u => u.team === 1 && !u.deployed && u.homePort === port && u.state !== 'BOARDING_AUTO');
+                if (aiIdle.length > 0) { let mission = { mechPort: port, tx: (2 + Math.random() * (W - 4))*C, ty: (PLAYER_Y_START + 2 + Math.random() * (ISLAND_H - 4))*C, team: 1, expected: aiIdle.length }; aiIdle.forEach(u => { u.state = 'BOARDING_AUTO'; u.boardTarget = port; u.mission = mission; }); let p = new Porter(port.cx, -100, 1); p.mission = mission; p.tx = port.cx; p.ty = port.cy; p.state = 'FLYING_TO_PORT'; p.angle = Math.PI/2; porters.push(p); }
+            });
+            let aiCMs = buildings.filter(b => b.team === 1 && b.type === 'TREBUCHET' && b.currentReload <= 0 && b.hp > 0); aiCMs.forEach(s => { s.currentReload = s.reloadTime; missiles.push(new Missile(s.cx, s.cy, 2 + Math.random() * (W - 4), PLAYER_Y_START + 2 + Math.random() * (ISLAND_H - 4), 1)); });
+            let aiBase = buildings.find(b => b.team === 1 && b.type === 'MAGE_TOWER' && b.hp > 0 && b.currentReload <= 0); 
+            if (aiBase) { 
+                aiBase.currentReload = aiBase.reloadTime * aiHqCdMod; 
+                let visualH = (STATS['MAGE_TOWER'].vH || aiBase.h) * C;
+                let offsetY = visualH - (aiBase.h * C);
+                let staffHeadX = (aiBase.gx * C + (aiBase.w * C) / 2) + 6;
+                let staffHeadY = (aiBase.gy * C - offsetY - 10 + C) - 18;
+                mortars.push(new MortarShell(staffHeadX, staffHeadY, (2 + Math.random()*(W-4))*C, (PLAYER_Y_START + 2 + Math.random()*(ISLAND_H-4))*C, 1, aiHqDmgMod)); 
+            }
+        }
+    }
+
+    function updateLogic(dt) {
+        if (gamePhase === 'PREP') { prepTimer -= dt; document.getElementById('timerTxt').innerText = Math.max(0, Math.ceil(prepTimer)) + 's'; if (prepTimer <= 0) startCombatPhase(); } 
+        else if (gamePhase === 'COMBAT') { gameTime -= dt; draftTimer -= dt; document.getElementById('draftTxt').innerText = Math.ceil(draftTimer); if (draftTimer <= 0) { draftTimer = 30; showDraft(); } if (gameTime <= 0) { isGameOver = true; setTimeout(() => { alert("Time's up! It's a draw!"); location.reload(); }, 500); } let m = Math.max(0, Math.floor(gameTime / 60)); let s = Math.max(0, Math.floor(gameTime % 60)); document.getElementById('timerTxt').innerText = `0${m}:${s.toString().padStart(2, '0')}`; aiBehavior(dt); }
+        if (playerRepairTimer > 0) { playerRepairTimer -= dt; let heal = playerRepairRate * dt; buildings.filter(b => b.team===0 && b.hp > 0).forEach(b => b.hp = Math.min(b.maxHp, b.hp + b.maxHp * heal)); }
+        decals.forEach(d => d.life -= dt); decals = decals.filter(d => d.life > 0);
+
+        let pRapid = playerRapidTimer > 0 ? 1.3 : 1; let aRapid = aiRapidTimer > 0 ? 1.3 : 1;
+        buildings.forEach(b => { if (b.team === 0 && b.hp > 0) revealFog(Math.floor(b.cx/C), Math.floor(b.cy/C), (b.atkRange > 0 ? b.atkRange : 6*C)/C); });
+
+        buildings.forEach(b => {
+            if (b.hp <= 0) return; let mult = b.team === 0 ? pRapid : aRapid; if (b.currentReload > 0) b.currentReload -= dt * mult; 
+            if (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') { 
+                let unitType = b.type === 'JAVELIN_HUT' ? 'TROLL_JAVELIN' : 'CYCLOP'; 
+                let stats = UNIT_STATS[unitType]; 
+                if (units.filter(u => u.homePort === b).length < stats.maxCap && gamePhase === 'COMBAT') { 
+                    b.spawnTimer += dt; 
+                    if (b.spawnTimer >= stats.buildTime) { 
+                        units.push(new Unit(b.cx + (Math.random()-0.5)*35, b.cy + 15 + (Math.random()-0.5)*15, unitType, b.team, b)); 
+                        b.spawnTimer = 0; 
+                    } 
+                } else { b.spawnTimer = 0; } 
+            }
+            if (b.type === 'ARCHER_TOWER' || b.type === 'BALLISTA') {
+                let allTargets = missiles.concat(porters); if (b.type === 'ARCHER_TOWER') allTargets = allTargets.concat(units);
+                let targets = allTargets.filter(t => t.team !== b.team && Math.hypot(t.x - b.cx, t.y - b.cy) <= b.targetRange);
+                if (targets.length > 0) { 
+                    let target = targets[0]; 
+                    b.angle = lerpAngle(b.angle, Math.atan2(target.y - b.cy, target.x - b.cx), dt * 5); 
+                    if (Math.hypot(target.x - b.cx, target.y - b.cy) <= b.atkRange && b.currentReload <= 0 && gamePhase === 'COMBAT') { 
+                        if (b.type === 'ARCHER_TOWER') { 
+                            if (!isHiddenInFog(b.cx, b.cy, b.team)) {
+                                const archerOffsets = [
+                                    { ox: -6,  oy: -22 },
+                                    { ox: 14,  oy: -28 },
+                                    { ox: 6,   oy: -14 }
+                                ];
+                                b.lastShooterIdx = ((b.lastShooterIdx || 0) + 1) % 3;
+                                let p = archerOffsets[b.lastShooterIdx];
+                                let visualH = (STATS[b.type].vH || b.h) * C;
+                                let offsetY = visualH - (b.h * C);
+                                let spawnX = (b.gx * C + (b.w * C) / 2) + p.ox;
+                                let spawnY = b.gy * C - offsetY + (visualH * 0.4) + p.oy;
+
+                                tracers.push({sx: spawnX, sy: spawnY, tx: target.x, ty: target.y, life: 0.15, maxLife: 0.15, type: 'PROJ_ARCHER'}); 
+                            }
+                            target.hp -= 25; 
+                            b.currentReload = b.reloadTime; 
+                        } else if (b.type === 'BALLISTA') { 
+                            interceptors.push({x: b.cx, y: b.cy, target: target, speed: 250, life: 3, isMiss: Math.random() >= (b.team === 0 ? playerAamHitRate : aiAamHitRate), team: b.team}); 
+                            b.currentReload = b.reloadTime; 
+                        } 
+                    } 
+                }
+            }
+            if (b.type === 'WATCHTOWER' && b.currentReload <= 0 && gamePhase === 'COMBAT') { 
+                let enemies = units.filter(u => u.team !== b.team && Math.hypot(u.x - b.cx, u.y - b.cy) < b.atkRange); 
+                if (enemies.length > 0) { 
+                    b.currentReload = b.reloadTime; 
+                    let target = enemies[0]; 
+                    tracers.push({sx: b.cx, sy: b.cy, tx: target.x, ty: target.y, life: 0.15, maxLife: 0.15, type: 'PROJ_BUNKER'}); 
+                    target.hp -= 35; 
+                } 
+            }
+        });
+
+        // --- CẬP NHẬT LÍNH & XỬ LÝ DỌN DẸP XÁC CHẾT ---
+        for (let i = units.length - 1; i >= 0; i--) {
+            let u = units[i]; 
+            if (u.hp <= 0) { 
+                if (u.mission) u.mission.expected--; 
+                // Tạo hiệu ứng chết (xác mờ dần và khói)
+                deadUnits.push({
+                    x: u.x, y: u.y, type: u.type, team: u.team, size: u.size, angle: u.angle,
+                    life: 0.8, maxLife: 0.8
+                });
+                for (let k = 0; k < 6; k++) {
+                    particles.push({
+                        x: u.x + (Math.random() - 0.5) * 10, y: u.y + (Math.random() - 0.5) * 10,
+                        vx: (Math.random() - 0.5) * 15, vy: -10 - Math.random() * 15,
+                        life: 0.5, maxLife: 0.5, size: Math.random() * 4 + 2,
+                        color: 'rgba(180, 180, 180, 0.6)', type: 'smoke'
+                    });
+                }
+                units.splice(i, 1); 
+                continue; 
+            }
+
+            if (u.attackTimer > 0) u.attackTimer -= dt;
+            if (u.currentReload > 0) u.currentReload -= dt;
+
+            if (u.team === 0 && u.viewRange > 0) revealFog(Math.floor(u.x / C), Math.floor(u.y / C), u.viewRange / C);
+            if (u.state === 'BOARDING_AUTO') { 
+                if (!u.boardTarget || u.boardTarget.hp <= 0) { u.state = 'IDLE'; if(u.mission) u.mission.expected--; continue; } 
+                let dx = u.boardTarget.cx - u.x; let dy = u.boardTarget.cy - u.y; let dist = Math.hypot(dx, dy) || 1; 
+                if (dist <= u.speed * dt + 5) u.state = 'WAITING_FOR_AIRPORT'; 
+                else { u.x += (dx/dist) * u.speed * dt; u.y += (dy/dist) * u.speed * dt; u.walkCycle += u.speed * dt; u.angle = Math.atan2(dy, dx); } 
+                continue; 
+            }
+            if (u.state === 'WAITING_FOR_AIRPORT') continue; 
+            
+            let potentialTargets = buildings.concat(units).filter(e => e.team !== u.team && e.hp > 0 && (u.y >= PLAYER_Y_START*C ? (e.cy||e.y)>=PLAYER_Y_START*C : (e.cy||e.y)<PLAYER_Y_START*C));
+            if (potentialTargets.length > 0) { 
+                let closest = null; let minDist = Infinity; 
+                for(let e of potentialTargets) { 
+                    let d = Math.hypot((e.cx||e.x) - u.x, (e.cy||e.y) - u.y); 
+                    if (d < minDist) { minDist = d; closest = e; } 
+                } 
+                let targetX = closest.cx || closest.x; 
+                let targetY = closest.cy || closest.y; 
+                let distToTarget = Math.hypot(targetX - u.x, targetY - u.y); 
+                u.angle = Math.atan2(targetY - u.y, targetX - u.x);
+
+                if (distToTarget <= u.atkRange) { 
+                    u.state = 'ATTACK';
+                    if (u.currentReload <= 0) { 
+                        u.currentReload = u.reload; 
+                        u.attackTimer = 0.35; // Thời gian vung đòn
+
+                        if (u.type === 'CYCLOP') {
+                            if (u.aoe > 0) potentialTargets.forEach(e => { if(Math.hypot((e.cx||e.x) - targetX, (e.cy||e.y) - targetY) <= u.aoe) e.hp -= u.dmg; }); 
+                            else closest.hp -= u.dmg; 
+                            particles.push({x: targetX, y: targetY, vx: 0, vy: 0, life: 0.2, maxLife: 0.2, size: 16, color: '#fbc02d', type: 'slash', angle: u.angle}); 
+                        } else if (u.type === 'TROLL_JAVELIN') {
+                            // TROLL PHÓNG LAO BAY ĐẾN ĐỊCH
+                            tracers.push({sx: u.x, sy: u.y, tx: targetX, ty: targetY, life: 0.2, maxLife: 0.2, type: 'PROJ_JAVELIN'});
+                            closest.hp -= u.dmg;
+                        }
+                    } 
+                } else { 
+                    u.state = 'MOVE';
+                    u.x += ((targetX - u.x)/(distToTarget||1)) * u.speed * dt; 
+                    u.y += ((targetY - u.y)/(distToTarget||1)) * u.speed * dt; 
+                    u.walkCycle += u.speed * dt * 0.5; 
+                } 
+            } else { 
+                u.state = 'IDLE'; 
+            }
+        }
+
+        // Cập nhật fade xác chết và xoá sạch
+        for (let i = deadUnits.length - 1; i >= 0; i--) {
+            deadUnits[i].life -= dt;
+            if (deadUnits[i].life <= 0) deadUnits.splice(i, 1);
+        }
+
+        for (let i = porters.length - 1; i >= 0; i--) { 
+            let p = porters[i]; if (p.hp <= 0) { porters.splice(i, 1); continue; } 
+            if (p.state === 'PICKING_UP') { 
+                let readyTroops = units.filter(u => u.mission === p.mission && u.state === 'WAITING_FOR_AIRPORT'); 
+                if (readyTroops.length === p.mission.expected) { 
+                    readyTroops.forEach(u => { p.cargo.push(u); units.splice(units.indexOf(u), 1); }); 
+                    p.state = 'FLYING'; p.tx = p.mission.tx; p.ty = p.mission.ty; p.angle = Math.atan2(p.ty - p.y, p.tx - p.x); 
+                } else if (p.mission.expected === 0) p.hp = 0; 
+                continue; 
+            } 
+            let dx = p.tx - p.x; let dy = p.ty - p.y; let dist = Math.hypot(dx, dy) || 1; 
+            if (dist <= p.speed * dt + 5) { 
+                p.x = p.tx; p.y = p.ty; 
+                if (p.state === 'FLYING_TO_PORT') p.state = 'PICKING_UP'; 
+                else if (p.state === 'FLYING') { 
+                    p.cargo.forEach(u => { u.x = p.x + (Math.random()-0.5)*20; u.y = p.y + (Math.random()-0.5)*20; u.state = 'ATTACK'; u.hp = u.maxHp; u.deployed = true; units.push(u); }); 
+                    p.cargo = []; p.state = 'RETURNING'; p.tx = p.x; p.ty = p.team === 0 ? -100 : (TOTAL_H * C) + 100; p.angle = Math.atan2(p.ty - p.y, p.tx - p.x); 
+                } else if (p.state === 'RETURNING') p.hp = 0; 
+            } else { p.x += (dx/dist) * p.speed * dt; p.y += (dy/dist) * p.speed * dt; } 
+        }
+
+        // --- MAGE MORTARS (TRAIL TÁCH XA PHÍA SAU ĐẠN) ---
+        for (let i = mortars.length - 1; i >= 0; i--) { 
+            let m = mortars[i]; 
+            if (!isHiddenInFog(m.x, m.y, m.team)) {
+                // Tính vector di chuyển để hạt lùi hẳn ra sau viên đạn
+                let curY = m.y - m.z;
+                let dirX = (m.tx - m.sx) / m.dist;
+                let dirY = (m.ty - m.sy) / m.dist;
+                let trailOffsetX = -dirX * 14; 
+                let trailOffsetY = -dirY * 14;
+
+                for (let k = 0; k < 2; k++) {
+                    let purpleShades = ['#d500f9', '#aa00ff', '#ea80fc', '#7c4dff'];
+                    let pColor = purpleShades[Math.floor(Math.random() * purpleShades.length)];
+                    particles.push({
+                        x: m.x + trailOffsetX + (Math.random() - 0.5) * 4,
+                        y: curY + trailOffsetY + (Math.random() - 0.5) * 4,
+                        vx: -dirX * 10 + (Math.random() - 0.5) * 10,
+                        vy: -dirY * 10 + (Math.random() - 0.5) * 10,
+                        life: 0.35,
+                        maxLife: 0.35,
+                        size: Math.random() * 4 + 2,
+                        color: pColor,
+                        type: 'magic'
+                    });
+                }
+            } 
+            if (m.update(dt)) { 
+                triggerExplosion(Math.floor(m.tx/C), Math.floor(m.ty/C), m.tx, m.ty, m.team, 0.42 * m.dmgMod, 'magic'); 
+                mortars.splice(i, 1); 
+            } 
+        }
+        
+        // --- TREBUCHET MISSILES (TRAIL LỬA LÙI HẲN RA ĐUÔI) ---
+        for (let i = missiles.length - 1; i >= 0; i--) { 
+            let m = missiles[i]; 
+            if (!isHiddenInFog(m.x, m.y, m.team)) {
+                let dirX = m.vx / m.speed;
+                let dirY = m.vy / m.speed;
+                let trailOffsetX = -dirX * 18; // Lùi hẳn ra sau 18px
+                let trailOffsetY = -dirY * 18;
+
+                for (let k = 0; k < 3; k++) {
+                    let fireShades = ['#ff3d00', '#ff9100', '#ffea00', '#dd2c00'];
+                    let fColor = fireShades[Math.floor(Math.random() * fireShades.length)];
+                    particles.push({
+                        x: m.x + trailOffsetX + (Math.random() - 0.5) * 5,
+                        y: m.y + trailOffsetY + (Math.random() - 0.5) * 5,
+                        vx: -m.vx * 0.2 + (Math.random() - 0.5) * 15,
+                        vy: -m.vy * 0.2 + (Math.random() - 0.5) * 15,
+                        life: 0.4,
+                        maxLife: 0.4,
+                        size: Math.random() * 5 + 2,
+                        color: fColor,
+                        type: 'fire'
+                    });
+                }
+            } 
+            if (m.hp <= 0) { 
+                if (!isHiddenInFog(m.x, m.y, m.team)) {
+                    for(let k=0; k<15; k++) particles.push({x: m.x, y: m.y, vx: (Math.random()-0.5)*30, vy: (Math.random()-0.5)*30, life: 0.5, maxLife: 0.5, size: Math.random()*4+2, color: '#ff3d00', type: 'fire'});
+                    floatingTexts.push({msg: "Shot Down!", x: m.x, y: m.y, life: 1.0, color: '#ff3d00'});
+                }
+                missiles.splice(i, 1); continue; 
+            } 
+            let dist = Math.hypot(m.tx - m.x, m.ty - m.y); 
+            if (dist <= m.speed * dt + 5) { 
+                triggerExplosion(m.tgx, m.tgy, m.tx, m.ty, m.team, 0.8, 'fire'); 
+                missiles.splice(i, 1); 
+            } else { 
+                m.x += m.vx * dt; m.y += m.vy * dt; 
+            } 
+        }
+
+        for (let i = interceptors.length - 1; i >= 0; i--) { let inc = interceptors[i]; if (inc.target.hp <= 0) { interceptors.splice(i,1); continue; } let dx = inc.target.x - inc.x; let dy = inc.target.y - inc.y; let dist = Math.hypot(dx, dy) || 1; inc.angle = Math.atan2(dy, dx); if (dist <= inc.speed * dt + 5) { if (!inc.isMiss) inc.target.hp -= 200; interceptors.splice(i, 1); } else { inc.x += Math.cos(inc.angle) * inc.speed * dt; inc.y += Math.sin(inc.angle) * inc.speed * dt; } }
+
+        tracers.forEach(t => t.life -= dt); tracers = tracers.filter(t => t.life > 0);
+        particles.forEach(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt; }); particles = particles.filter(p => p.life > 0);
+        shockwaves.forEach(sw => sw.radius += sw.maxRadius * dt * 3); shockwaves = shockwaves.filter(sw => sw.radius < sw.maxRadius);
+        floatingTexts.forEach(ft => ft.life -= dt); floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+
+        buildings.forEach(b => { if (b.type === 'MAGE_TOWER' && b.hp <= 0 && !isGameOver) { isGameOver = true; setTimeout(() => { alert(b.team === 1 ? "VICTORY!" : "DEFEAT!"); location.reload(); }, 500); } });
+        updateButtonsUI();
+    }
+
+    function triggerExplosion(gx, gy, px, py, shooterTeam, damageMultiplier, effectType = 'fire') {
+        let radius = 4.5;
+        let pColors = effectType === 'magic' ? ['#d500f9', '#aa00ff', '#ea80fc', '#7c4dff'] : ['#ff3d00', '#ff9100', '#ffea00', '#dd2c00'];
+        for(let i=0; i<30; i++) {
+            let col = pColors[Math.floor(Math.random() * pColors.length)];
+            particles.push({x: px, y: py, vx: (Math.random()-0.5)*50, vy: (Math.random()-0.5)*50, life: 0.7, maxLife: 0.7, size: Math.random()*5+2, color: col, type: effectType});
+        }
+        if (shooterTeam === 0) revealFog(gx, gy, radius);
+        let targetTeam = (shooterTeam === 0) ? 1 : 0; let baseDmg = 1500 * damageMultiplier;
+        buildings.filter(b => b.team === targetTeam && b.hp > 0).forEach(b => { let dist = Math.hypot((b.gx + b.w/2) - gx, (b.gy + b.h/2) - gy); if (dist <= radius) b.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); });
+        units.filter(u => u.team === targetTeam).forEach(u => { let dist = Math.hypot(u.x - gx*C, u.y - gy*C) / C; if (dist <= radius) u.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); });
+    }
+
+    function revealFog(gx, gy, radius) { if (isNaN(gx) || isNaN(gy)) return; for (let x = Math.max(0, Math.floor(gx-radius)); x <= Math.min(W-1, Math.ceil(gx+radius)); x++) { for (let y = Math.max(0, Math.floor(gy-radius)); y <= Math.min(TOTAL_H-1, Math.ceil(gy+radius)); y++) { if (Math.hypot(x - gx, y - gy) <= radius && fog[x]) fog[x][y] = false; } } }
+
+    function drawBuildingSprite(b, px, py, isGhost = false) {
+    let img = loadedImages[b.type];
+    ctx.save();
+    if (isGhost) ctx.globalAlpha = 0.45;
+
+    // --- TÍNH KÍCH THƯỚC KHÓA THEO CHIỀU RỘNG GRID ---
+    let targetW = b.w * C;
+    let targetH = b.h * C;
+
+    // Nếu là Spritesheet Trebuchet (6 frames chia thành 6 cột)
+    if (b.type === 'TREBUCHET') {
+        let tImg = loadedImages['TREBUCHET'];
+        if (tImg && tImg.complete && tImg.naturalWidth !== 0) {
+            let cols = 6, rows = 1;
+            let frameW = tImg.naturalWidth / cols;
+            let frameH = tImg.naturalHeight / rows;
+            let aspectRatio = frameH / frameW;
+            targetH = targetW * aspectRatio;
+        }
+    } 
+    // Các công trình dùng ảnh đơn khác
+    else if (img && img.complete && img.naturalWidth !== 0) {
+        let aspectRatio = img.naturalHeight / img.naturalWidth;
+        targetH = targetW * aspectRatio;
+    }
+
+    // Độ lệch trục Y để đế ảnh chạm đáy grid, phần thân vươn lên trên
+    let offsetY = targetH - (b.h * C);
+
+    // ==========================================
+    // 1. BALLISTA
+    // ==========================================
+    if (b.type === 'BALLISTA') {
+        let baseImg = loadedImages['BALLISTA_BASE'];
+        let topImg = loadedImages['BALLISTA_TOP'];
+        let arrowImg = loadedImages['PROJ_BALLISTA'];
+        
+        let scaleBase = 1.2;
+        let baseW = targetW * scaleBase;
+        let baseH = targetH * scaleBase;
+        let baseOffsetX = (baseW - targetW) / 2;
+        let baseOffsetY = (baseH - targetH);
+
+        if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) {
+            ctx.drawImage(baseImg, px - baseOffsetX, py - offsetY - baseOffsetY, baseW, baseH);
+        } else { 
+            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+            ctx.fillRect(px, py - offsetY, targetW, targetH); 
+        }
+
+        if (topImg && topImg.complete && topImg.naturalWidth !== 0) {
+            ctx.save();
+            ctx.translate(px + targetW / 2, py - offsetY + targetH / 2 - 10);
+            ctx.rotate(b.angle + Math.PI/2);
+            
+            let recoil = 0;
+            if (b.currentReload > b.reloadTime - 0.2) recoil = ((b.currentReload - (b.reloadTime - 0.2)) / 0.2) * 8; 
+            
+            ctx.drawImage(topImg, -targetW / 2, -targetH / 2 + recoil, targetW, targetH);
+            
+            if (b.currentReload <= 0 && arrowImg && arrowImg.complete && arrowImg.naturalWidth !== 0) {
+                ctx.drawImage(arrowImg, -4, -targetH / 2 + 2 + recoil, 8, 24);
+            }
+            ctx.restore();
+        }
+    } 
+    // ==========================================
+    // 2. ARCHER TOWER
+    // ==========================================
+    else if (b.type === 'ARCHER_TOWER') {
+        let baseImg = loadedImages['ARCHER_BASE'];
+        let archerImg = loadedImages['U_ARCHER'];
+        
+        if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) ctx.drawImage(baseImg, px, py - offsetY, targetW, targetH);
+        else { ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; ctx.fillRect(px, py - offsetY, targetW, targetH); }
+        
+        if (archerImg && archerImg.complete && archerImg.naturalWidth !== 0) {
+            let isShooting = (b.currentReload > 0 && gamePhase === 'COMBAT');
+            const archerPos = [
+                { ox: -6,  oy: -22 },
+                { ox: 14,  oy: -28 },
+                { ox: 6,   oy: -14 }
+            ];
+
+            let sortedPos = [...archerPos].sort((a, b) => a.oy - b.oy);
+            sortedPos.forEach((pos, idx) => {
+                let bob = isShooting ? Math.sin(Date.now() / 40 + idx * 2.1) * 3 : 0;
+                let ax = (px + targetW / 2) + pos.ox - 11;
+                let ay = py - offsetY + (targetH * 0.4) + pos.oy + bob;
+                ctx.drawImage(archerImg, ax, ay, 22, 22);
+            });
+        }
+    }
+    // ==========================================
+    // 3. WATCHTOWER / T_BUNKER (BỎ SCALE 1.5, ÉP KHÍT CHIỀU RỘNG GRID)
+    // ==========================================
+    else if (b.type === 'WATCHTOWER') {
+        if (img && img.complete && img.naturalWidth !== 0) {
+            ctx.drawImage(img, px, py - offsetY, targetW, targetH);
+        } else {
+            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+            ctx.fillRect(px, py - offsetY, targetW, targetH);
+            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
+            ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
+        }
+    }
+    // ==========================================
+    // 4. MAGE TOWER
+    // ==========================================
+    else if (b.type === 'MAGE_TOWER') {
+        let baseImg = loadedImages['CASTLE_BASE'];
+        let mageImg = loadedImages['U_MAGE_01'];
+        let bulletImg = loadedImages['U_Mage_01_bullet'];
+        
+        if (baseImg && baseImg.complete && baseImg.naturalWidth !== 0) ctx.drawImage(baseImg, px, py - offsetY, targetW, targetH);
+        else { ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; ctx.fillRect(px, py - offsetY, targetW, targetH); }
+        
+        let staffX = px + targetW / 2;
+        let staffY = py - offsetY - 10 + C;
+
+        if (mageImg && mageImg.complete && mageImg.naturalWidth !== 0) {
+            ctx.save();
+            ctx.translate(staffX, staffY);
+            let scaleX = 1, scaleY = 1;
+            let actualReloadTime = b.reloadTime * (b.team === 0 ? playerHqCdMod : aiHqCdMod);
+            if (b.currentReload > actualReloadTime - 0.3) { scaleX = 0.8; scaleY = 1.3; } 
+            else if (b.currentReload > actualReloadTime - 0.6) { scaleX = 1.2; scaleY = 0.8; }
+            ctx.scale(scaleX, scaleY);
+            ctx.drawImage(mageImg, -24, -30, 48, 48);
+
+            if (b.currentReload <= 0) {
+                let pulse = 1 + Math.sin(Date.now() / 150) * 0.18;
+                let bSize = 16 * pulse;
+                let headX = 6, headY = -18;
+                if (bulletImg && bulletImg.complete && bulletImg.naturalWidth !== 0) {
+                    ctx.drawImage(bulletImg, headX - bSize/2, headY - bSize/2, bSize, bSize);
+                } else {
+                    ctx.fillStyle = '#d500f9';
+                    ctx.beginPath();
+                    ctx.arc(headX, headY, bSize/2.5, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+            ctx.restore();
+        }
+    }
+    // ==========================================
+    // 5. TREBUCHET (3x4 KHÓA THEO CHIỀU RỘNG)
+    // ==========================================
+    else if (b.type === 'TREBUCHET') {
+        let tImg = loadedImages['TREBUCHET']; 
+        if (tImg && tImg.complete && tImg.naturalWidth !== 0) {
+            let cols = 6, rows = 1;
+            let frameW = tImg.naturalWidth / cols; 
+            let frameH = tImg.naturalHeight / rows;
+            let currentFrame = 0; 
+            let actualReloadTime = b.reloadTime * (b.team === 0 ? playerHqCdMod : aiHqCdMod);
+            let timeSinceFired = actualReloadTime - b.currentReload;
+            let firingDuration = 0.6; 
+            
+            if (gamePhase === 'COMBAT') {
+                if (b.currentReload > 0 && timeSinceFired < firingDuration) {
+                    let progress = timeSinceFired / firingDuration;
+                    currentFrame = 2 + Math.floor(progress * 4); 
+                    if (currentFrame > 5) currentFrame = 5;
+                }
+                else if (b.currentReload <= 0) currentFrame = 1; 
+                else currentFrame = 0; 
+            }
+
+            let cutX = currentFrame * frameW;
+            ctx.drawImage(tImg, cutX, 0, frameW, frameH, px, py - offsetY, targetW, targetH); 
+        } else {
+            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+            ctx.fillRect(px, py - offsetY, targetW, targetH);
+            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
+            ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
+        }
+    }
+    // ==========================================
+    // 6. CÁC KIẾN TRÚC CÒN LẠI (JAVELIN_HUT, CYCLOP_CAVE...)
+    // ==========================================
+    else {
+        if (img && img.complete && img.naturalWidth !== 0) {
+            ctx.drawImage(img, px, py - offsetY, targetW, targetH); 
+        } else { 
+            ctx.fillStyle = b.team === 0 ? '#5d4037' : '#b71c1c'; 
+            ctx.fillRect(px, py - offsetY, targetW, targetH);
+            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; 
+            ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
+        }
+    }
+
+    ctx.restore();
+}
+
+    function drawCooldownOrReadyUI(b, px, py, visualH, offsetY) {
+        if (b.team !== 0 || gamePhase !== 'COMBAT') return;
+        const targetTypes = ['MAGE_TOWER', 'TREBUCHET', 'JAVELIN_HUT', 'CYCLOP_CAVE'];
+        if (!targetTypes.includes(b.type)) return;
+
+        let totalTime = 1;
+        let remaining = 0;
+        let isReady = false;
+
+        if (b.type === 'MAGE_TOWER' || b.type === 'TREBUCHET') {
+            totalTime = b.reloadTime * (b.team === 0 ? playerHqCdMod : 1);
+            remaining = Math.max(0, b.currentReload);
+            isReady = (remaining <= 0);
+        } else if (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') {
+            let uType = b.type === 'JAVELIN_HUT' ? 'TROLL_JAVELIN' : 'CYCLOP';
+            let stats = UNIT_STATS[uType];
+            let currentCount = units.filter(u => u.homePort === b).length;
+            if (currentCount >= stats.maxCap) {
+                isReady = true;
+                remaining = 0;
+            } else {
+                totalTime = stats.buildTime;
+                remaining = Math.max(0, stats.buildTime - b.spawnTimer);
+                isReady = false;
+            }
+        }
+
+        let centerX = px + (b.w * C) / 2;
+        let centerY = py + (b.h * C) / 2;
+
+        if (!isReady && remaining > 0) {
+            let radius = 10;
+            let progress = 1 - (remaining / totalTime); 
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(26, 21, 16, 0.75)';
+            ctx.fill();
+            ctx.strokeStyle = '#fbc02d';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius - 1.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(251, 192, 45, 0.65)';
+            ctx.fill();
+
+            ctx.restore();
+        } else if (isReady) {
+            ctx.save();
+            let textY = py + (b.h * C) + 9;
+            ctx.font = 'bold 9px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            let textW = ctx.measureText("READY").width + 8;
+            ctx.fillStyle = 'rgba(26, 21, 16, 0.8)';
+            ctx.beginPath();
+            ctx.roundRect(centerX - textW/2, textY - 6, textW, 12, 3);
+            ctx.fill();
+            ctx.strokeStyle = '#69f0ae';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.fillStyle = '#69f0ae';
+            ctx.fillText("READY", centerX, textY);
+            ctx.restore();
+        }
+    }
+
+    function drawWorld() {
+        ctx.fillStyle = '#8bc34a'; ctx.fillRect(0, ENEMY_Y_START*C, W*C, ISLAND_H*C); ctx.fillRect(0, PLAYER_Y_START*C, W*C, ISLAND_H*C);
+        ctx.fillStyle = '#4fc3f7'; ctx.fillRect(0, SEA_Y_START*C, W*C, SEA_H*C);   
+        ctx.fillStyle = '#689f38'; ctx.fillRect(2*C, ENEMY_Y_START*C + 2*C, (W-4)*C, (ISLAND_H-4)*C); ctx.fillRect(2*C, PLAYER_Y_START*C + 2*C, (W-4)*C, (ISLAND_H-4)*C);
+        
+        if (gamePhase === 'PREP' || draggingBuilding !== null) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = 1;
+            for (let x = 2; x <= W - 2; x++) {
+                ctx.beginPath();
+                ctx.moveTo(x * C, (PLAYER_Y_START + 2) * C);
+                ctx.lineTo(x * C, (PLAYER_Y_START + ISLAND_H - 2) * C);
+                ctx.stroke();
+            }
+            for (let y = PLAYER_Y_START + 2; y <= PLAYER_Y_START + ISLAND_H - 2; y++) {
+                ctx.beginPath();
+                ctx.moveTo(2 * C, y * C);
+                ctx.lineTo((W - 2) * C, y * C);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        ctx.fillStyle = '#33691e'; terrainTrees.forEach(t => { let tx = t.gx * C + C/2; let ty = t.gy * C + C/2; ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI*2); ctx.fill(); });
+        for(let x=0; x<W; x++) { for(let y=0; y<TOTAL_H; y++) { if(fog[x] && fog[x][y]) { ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(x*C, y*C, C, C); } } } 
+
+        let sortedBuildings = [...buildings].sort((a, b) => a.gy - b.gy);
+
+        sortedBuildings.forEach(b => {
+            try {
+                if (b.hp <= 0) return;
+                if (b.team === 1 && isFogged(Math.floor(b.gx), Math.floor(b.gy))) return; 
+
+                let px = b.gx * C; 
+                let py = b.gy * C; 
+
+                let isBeingDragged = (draggingBuilding === b);
+                drawBuildingSprite(b, px, py, isBeingDragged);
+                
+                let visualH = (STATS[b.type].vH || b.h) * C;
+                let offsetY = visualH - (b.h * C);
+
+                if (!isBeingDragged && (b === selectedEntity || (globalAttackMode === b.type && b.team === 0))) { 
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = '#fff'; 
+                    ctx.strokeRect(px, py, b.w*C, b.h*C); ctx.shadowBlur = 0; 
+                }
+
+                if (!isBeingDragged && b.hp < b.maxHp) {
+                    let hpRatio = Math.max(0, b.hp / b.maxHp); 
+                    ctx.fillStyle = '#3e2723'; ctx.fillRect(px, py - 4, b.w*C, 3); 
+                    ctx.fillStyle = '#69f0ae'; ctx.fillRect(px, py - 4, b.w*C * hpRatio, 3);
+                }
+
+                if (!isBeingDragged) {
+                    drawCooldownOrReadyUI(b, px, py, visualH, offsetY);
+                }
+            } catch(e) {}
+        });
+
+        if (draggingBuilding !== null && gamePhase === 'PREP') {
+            let previewGx = Math.floor(mouseWx / C);
+            let previewGy = Math.floor(mouseWy / C);
+            let isValid = checkPlacementValid(draggingBuilding.type, previewGx, previewGy, draggingBuilding);
+
+            let previewPx = previewGx * C;
+            let previewPy = previewGy * C;
+            let previewW = STATS[draggingBuilding.type].w * C;
+            let previewH = STATS[draggingBuilding.type].h * C;
+
+            ctx.fillStyle = isValid ? 'rgba(105, 240, 174, 0.4)' : 'rgba(244, 67, 54, 0.4)'; 
+            ctx.fillRect(previewPx, previewPy, previewW, previewH);
+            ctx.strokeStyle = isValid ? '#69f0ae' : '#f44336';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(previewPx, previewPy, previewW, previewH);
+
+            if (STATS[draggingBuilding.type].atkRange > 0) {
+                ctx.beginPath();
+                ctx.arc(previewPx + previewW/2, previewPy + previewH/2, STATS[draggingBuilding.type].atkRange, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(255, 235, 59, 0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            ctx.save();
+            ctx.globalAlpha = 0.85;
+            drawBuildingSprite(draggingBuilding, previewPx, previewPy, false);
+            ctx.restore();
+        }
+
+        // --- VẼ XÁC CHẾT FADE OUT (DỌN DẸP CHIẾN TRƯỜNG) ---
+        deadUnits.forEach(d => {
+            let img = loadedImages[d.type];
+            let alpha = Math.max(0, d.life / d.maxLife);
+            ctx.save();
+            ctx.globalAlpha = alpha * 0.6;
+            if (d.team === 1) ctx.filter = 'sepia(1) saturate(5) hue-rotate(310deg)';
+            let drawW = d.size * 4;
+            let drawH = d.size * 4;
+            ctx.translate(d.x, d.y);
+            ctx.rotate(d.angle + Math.PI/2);
+            if (img && img.complete && img.naturalWidth !== 0) {
+                ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+            }
+            ctx.restore();
+        });
+
+        // --- Y-SORTING UNITS (NHÂN VẬT VỚI BỘ ANIMATION IDLE / MOVE / ATTACK) ---
+        let sortedUnits = [...units].sort((a, b) => a.y - b.y);
+
+        sortedUnits.forEach(u => {
+            if (isHiddenInFog(u.x, u.y, u.team)) return;
+            let img = loadedImages[u.type];
+            
+            ctx.save();
+            if (u.team === 1) ctx.filter = 'sepia(1) saturate(5) hue-rotate(310deg)';
+
+            // Tính toán biến dạng và dịch chuyển theo trạng thái (Animation States)
+            let bounceY = 0;
+            let rot = 0;
+            let scaleX = 1;
+            let scaleY = 1;
+
+            if (u.state === 'MOVE') {
+                // Nhún nhảy và nghiêng mình khi chạy
+                bounceY = Math.abs(Math.sin(u.walkCycle * 4)) * -4;
+                rot = Math.sin(u.walkCycle * 2) * 0.15;
+            } else if (u.state === 'ATTACK') {
+                // Lunge & strike (Lao tới trước bổ đòn)
+                let atkProgress = u.attackTimer > 0 ? (u.attackTimer / 0.35) : 0;
+                let lunge = Math.sin(atkProgress * Math.PI) * 7;
+                bounceY = -Math.abs(lunge);
+                scaleX = 1.15;
+                scaleY = 0.85;
+            } else {
+                // IDLE: Thở nhẹ
+                bounceY = Math.sin(Date.now() / 300 + u.x) * 1.5;
+            }
+
+            let drawW = u.size * 4;
+            let drawH = u.size * 4;
+
+            ctx.translate(u.x, u.y + bounceY);
+            ctx.rotate(rot);
+            ctx.scale(scaleX, scaleY);
+
+            if (img && img.complete && img.naturalWidth !== 0) { 
+                ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH); 
+            } else { 
+                ctx.fillStyle = u.team === 0 ? '#1976d2' : '#d32f2f'; 
+                ctx.beginPath(); ctx.arc(0, 0, u.size, 0, Math.PI*2); ctx.fill(); 
+            }
+            ctx.restore();
+
+            if (u.hp < u.maxHp) {
+                let hpRatio = Math.max(0, u.hp / u.maxHp); 
+                ctx.fillStyle = '#3e2723'; ctx.fillRect(u.x - u.size, u.y - u.size - 6, u.size*2, 2);
+                ctx.fillStyle = '#69f0ae'; ctx.fillRect(u.x - u.size, u.y - u.size - 6, (u.size*2) * hpRatio, 2);
+            }
+        });
+
+        // DRAW PROJECTILES
+        tracers.forEach(t => { 
+            let img = loadedImages[t.type];
+            let p = 1 - (t.life / t.maxLife); 
+            let cx = t.sx + (t.tx - t.sx) * p; 
+            let cy = t.sy + (t.ty - t.sy) * p; 
+            
+            if (img && img.complete && img.naturalWidth !== 0) {
+                let angle = Math.atan2(t.ty - t.sy, t.tx - t.sx);
+                ctx.save(); ctx.translate(cx, cy); ctx.rotate(angle + Math.PI/2);
+                ctx.drawImage(img, -4, -8, 8, 16);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = '#fff'; 
+                ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill(); 
+            }
+        });
+
+        // ĐẠN PHÁP SƯ BAY VỚI ANIM PHẬP PHỒNG
+        mortars.forEach(m => { 
+            if (!isHiddenInFog(m.x, m.y, m.team)) { 
+                let img = loadedImages['U_Mage_01_bullet'];
+                let pulse = 1 + Math.sin(Date.now() / 80) * 0.2; // Phập phồng nhanh khi bay
+                let renderSize = 16 * pulse;
+
+                if (img && img.complete && img.naturalWidth !== 0) {
+                    ctx.save();
+                    ctx.translate(m.x, m.y - m.z);
+                    ctx.rotate(Date.now() / 150); // Xoay tròn ma thuật
+                    ctx.drawImage(img, -renderSize/2, -renderSize/2, renderSize, renderSize);
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle = '#d500f9'; 
+                    ctx.beginPath(); ctx.arc(m.x, m.y - m.z, (renderSize/3), 0, Math.PI*2); ctx.fill(); 
+                }
+            } 
+        }); 
+
+        missiles.forEach(m => { 
+            if (!isHiddenInFog(m.x, m.y, m.team)) { 
+                let img = loadedImages['PROJ_TREBUCHET'];
+                if (img && img.complete && img.naturalWidth !== 0) {
+                    ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.angle + Math.PI/2);
+                    ctx.drawImage(img, -10, -10, 20, 20);
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle = '#ff3d00'; ctx.beginPath(); ctx.arc(m.x, m.y, 6, 0, Math.PI*2); ctx.fill(); 
+                }
+            } 
+        }); 
+
+        porters.forEach(p => {
+            if (isHiddenInFog(p.x, p.y, p.team)) return;
+            let img = loadedImages['DIRIGIBLE'];
+            if (img && img.complete && img.naturalWidth !== 0) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle + Math.PI/2); ctx.drawImage(img, -20, -20, 40, 40); ctx.restore(); }
+            else { ctx.fillStyle = '#ffb300'; ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI*2); ctx.fill(); } 
+        });
+
+        interceptors.forEach(inc => { 
+            if (!isHiddenInFog(inc.x, inc.y, inc.team)) { 
+                let img = loadedImages['PROJ_BALLISTA'];
+                if (img && img.complete && img.naturalWidth !== 0) {
+                    ctx.save(); ctx.translate(inc.x, inc.y); ctx.rotate(inc.angle + Math.PI/2);
+                    ctx.drawImage(img, -4, -12, 8, 24); 
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(inc.x, inc.y, 2, 0, Math.PI*2); ctx.fill(); 
+                }
+            } 
+        }); 
+        
+        particles.forEach(p => { 
+            ctx.globalAlpha = Math.max(0, p.life / p.maxLife); 
+            ctx.fillStyle = p.color; 
+            ctx.beginPath(); 
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); 
+            ctx.fill(); 
+        }); 
+        ctx.globalAlpha = 1.0;
+        floatingTexts.forEach(ft => { ctx.fillStyle = ft.color; ctx.font = 'bold 12px Arial'; ctx.fillText(ft.msg, ft.x, ft.y - (1.5 - ft.life)*15); });
+    }
+
+    function draw() {
+        if (canvas.width !== gameArea.clientWidth || canvas.height !== gameArea.clientHeight) { canvas.width = gameArea.clientWidth; canvas.height = gameArea.clientHeight; }
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save(); ctx.translate(canvas.width/2, canvas.height/2); ctx.scale(camZoom, camZoom); ctx.translate(-camX, -camY); drawWorld(); ctx.restore();
+    }
+    requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
