@@ -114,12 +114,12 @@
     }
     preloadAssets();
 
-    // --- GAME CONFIG: ĐẢO 20 Ô, BIỂN 16 Ô, TỔNG 56 Ô ---
+    // CẤU HÌNH BẢN ĐỒ: ĐẢO 20 Ô, BIỂN 16 Ô, TỔNG 56 Ô[cite: 1]
     const C = 16; 
     const W = 36; 
     const ISLAND_H = 20; 
     const SEA_H = 16; 
-    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 56
+    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 56[cite: 1]
     const ENEMY_Y_START = 0; 
     const SEA_Y_START = 20; 
     const PLAYER_Y_START = 36; 
@@ -127,7 +127,6 @@
     
     const UNIT_STATS = { CYCLOP: { buildTime: 30, maxCap: 1 }, TROLL_JAVELIN: { buildTime: 10, maxCap: 3 } };
     
-    // Trebuchet 3x4 khóa theo chiều ngang
     const STATS = {
         MAGE_TOWER:   { w: 6, h: 3, hp: 5000, reload: 20, atkRange: 0 }, 
         TREBUCHET:    { w: 3, h: 4, hp: 800, reload: 30, atkRange: 0 }, 
@@ -197,7 +196,7 @@
     function updateStatsUI() { if (gamePhase === 'COMBAT') { let elAcc = document.getElementById('accTxt'); if (elAcc) elAcc.innerText = (playerAamHitRate * 100).toFixed(0); } }
 
     let terrainTrees = [];
-    function generateTreesForIsland(startY) { for(let i=0; i<25; i++) terrainTrees.push({ gx: 2 + Math.floor(Math.random() * (W-4)), gy: startY + 2 + Math.floor(Math.random() * (ISLAND_H-4)) }); }
+    function generateTreesForIsland(startY) { for(let i=0; i<20; i++) terrainTrees.push({ gx: 2 + Math.floor(Math.random() * (W-4)), gy: startY + 2 + Math.floor(Math.random() * (ISLAND_H-4)) }); }
     generateTreesForIsland(ENEMY_Y_START); generateTreesForIsland(PLAYER_Y_START);
 
     class Building {
@@ -257,23 +256,36 @@
     }
 
     function createGradientCrater(x, y, r) { decals.push({type: 'gradient', x: x, y: y, r: r, life: 8, maxLife: 8}); }
+
+    // BỐ TRÍ TRỤ AI ĐỒNG BỘ 100% VỚI PHE TA: 7 BALLISTA, 5 ARCHER, 4 BUNKER, 3 TREBUCHET, 1 HUT, 1 CAVE[cite: 1]
     function setupAIFullDefenses() {
         buildings.push(new Building(15, 2, 'MAGE_TOWER', 1));
-        let prepInventoryAI = { ARCHER_TOWER: 7, BALLISTA: 10, WATCHTOWER: 6, TREBUCHET: 3, JAVELIN_HUT: 1, CYCLOP_CAVE: 1 };
+        let prepInventoryAI = { 
+            ARCHER_TOWER: 5, 
+            BALLISTA: 7, 
+            WATCHTOWER: 4, 
+            TREBUCHET: 3, 
+            JAVELIN_HUT: 1, 
+            CYCLOP_CAVE: 1 
+        };
+
         for (const [type, count] of Object.entries(prepInventoryAI)) {
-            for(let i=0; i<count; i++) {
-                let overlap = true; let tries = 0; let candidateX, candidateY;
-                while(overlap && tries < 500) { 
+            for(let i = 0; i < count; i++) {
+                let candidateX, candidateY;
+                for (let tries = 0; tries < 150; tries++) {
                     candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); 
                     candidateY = ENEMY_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); 
-                    overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); 
-                    tries++; 
+                    let overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); 
+                    if (!overlap) {
+                        buildings.push(new Building(candidateX, candidateY, type, 1));
+                        break;
+                    }
                 }
-                if (!overlap) buildings.push(new Building(candidateX, candidateY, type, 1));
             }
         }
     }
     setupAIFullDefenses();
+
     function showTextMsg(msg) { let el = document.getElementById('centerMsg'); el.innerHTML = msg; el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 2500); }
 
     const ALL_CARDS = [
@@ -312,19 +324,24 @@
         else if (id === 'CM_EVADE') { playerCmEvadeRate += 0.03; showTextMsg("Monsters got Wind Shield!"); }
         else if (id.startsWith('FREE_')) { 
             let type = id.replace('FREE_', ''); 
-            let overlap = true; let tries = 0; let candidateX, candidateY; 
-            while(overlap && tries < 500) { 
+            let candidateX, candidateY; 
+            let placed = false;
+            for (let tries = 0; tries < 80; tries++) {
                 candidateX = 2 + Math.floor(Math.random() * (W - 4 - STATS[type].w)); 
                 candidateY = PLAYER_Y_START + 2 + Math.floor(Math.random() * (ISLAND_H - 4 - STATS[type].h)); 
-                overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); 
-                tries++; 
-            } 
-            if (!overlap) { buildings.push(new Building(candidateX, candidateY, type, 0)); showTextMsg("Building constructed!"); } 
-            else showTextMsg("No space to build!"); 
+                let overlap = buildings.some(b => !(candidateX + STATS[type].w <= b.gx || candidateX >= b.gx + b.w || candidateY + STATS[type].h <= b.gy || candidateY >= b.gy + b.h)); 
+                if (!overlap) {
+                    buildings.push(new Building(candidateX, candidateY, type, 0));
+                    showTextMsg("Building constructed!");
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) showTextMsg("No space to build!"); 
         }
     }
 
-    // KHỞI ĐẦU ĐẢO 20 Ô (ĐÃ CĂN TỌA ĐỘ MỚI)
+    // ĐỘI HÌNH PHE TA: 7 BALLISTA, 5 ARCHER, 4 WATCHTOWER[cite: 1]
     function startPrepPhase() {
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
@@ -333,12 +350,16 @@
         prepTimer = 30;
 
         buildings.push(new Building(15, 47, 'MAGE_TOWER', 0)); 
-        let aamX = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30]; 
+        
+        let aamX = [4, 8, 12, 16, 20, 24, 28]; 
         aamX.forEach(x => buildings.push(new Building(x, 38, 'BALLISTA', 0))); 
-        let ciwsX = [3, 7, 11, 15, 19, 23, 27]; 
+        
+        let ciwsX = [5, 10, 15, 20, 25]; 
         ciwsX.forEach(x => buildings.push(new Building(x, 41, 'ARCHER_TOWER', 0))); 
-        let bunkerX = [4, 10, 15, 20, 25, 30]; 
+        
+        let bunkerX = [6, 12, 18, 24]; 
         bunkerX.forEach(x => buildings.push(new Building(x, 44, 'WATCHTOWER', 0)));
+        
         buildings.push(new Building(8, 49, 'TREBUCHET', 0)); 
         buildings.push(new Building(17, 50, 'TREBUCHET', 0)); 
         buildings.push(new Building(26, 49, 'TREBUCHET', 0)); 
@@ -389,7 +410,6 @@
         let gx = Math.floor(coords.wx / C); 
         let gy = Math.floor(coords.wy / C);
 
-        // THẢ CÔNG TRÌNH VỚI ĐỘ LỆCH NHẤC LÊN TRÊN NGÓN TAY (LIFT-DRAG)
         if (draggingBuilding !== null) {
             if (gamePhase === 'PREP') { 
                 let targetWy = coords.wy - 2 * C;
@@ -484,7 +504,19 @@
     function lerpAngle(a, b, t) { let delta = ((b - a) % (Math.PI * 2)); if (delta > Math.PI) delta -= Math.PI * 2; else if (delta < -Math.PI) delta += Math.PI * 2; return a + delta * t; }
 
     let lastTick = Date.now();
-    function gameLoop() { try { let now = Date.now(); let dt = (now - lastTick) / 1000; lastTick = now; if(dt > 0.1) dt = 0.1; if (!isGameOver && !isDrafting) updateLogic(dt); draw(); } catch (err) {} requestAnimationFrame(gameLoop); }
+    function gameLoop() { 
+        try { 
+            let now = Date.now(); 
+            let dt = (now - lastTick) / 1000; 
+            lastTick = now; 
+            if(dt > 0.1) dt = 0.1; 
+            if (!isGameOver && !isDrafting) updateLogic(dt); 
+            draw(); 
+        } catch (err) {
+            console.error("Game loop error:", err);
+        } 
+        requestAnimationFrame(gameLoop); 
+    }
 
     function updateButtonsUI() {
         if (gamePhase !== 'COMBAT') return;
@@ -595,7 +627,6 @@
             }
         });
 
-        // --- CẬP NHẬT LÍNH & CLEANUP XÁC CHẾT ---
         for (let i = units.length - 1; i >= 0; i--) {
             let u = units[i]; 
             if (u.hp <= 0) { 
@@ -693,13 +724,13 @@
             } else { p.x += (dx/dist) * p.speed * dt; p.y += (dy/dist) * p.speed * dt; } 
         }
 
-        // --- MAGE TRAIL (LÙI HẲN RA SAU ĐẠN) ---
+        // --- MAGE TRAIL ---
         for (let i = mortars.length - 1; i >= 0; i--) { 
             let m = mortars[i]; 
             if (!isHiddenInFog(m.x, m.y, m.team)) {
                 let curY = m.y - m.z;
-                let dirX = (m.tx - m.sx) / m.dist;
-                let dirY = (m.ty - m.sy) / m.dist;
+                let dirX = (m.tx - m.sx) / (m.dist || 1);
+                let dirY = (m.ty - m.sy) / (m.dist || 1);
                 let trailOffsetX = -dirX * 14; 
                 let trailOffsetY = -dirY * 14;
 
@@ -725,12 +756,12 @@
             } 
         }
         
-        // --- TREBUCHET TRAIL (LÙI HẲN RA ĐUÔI) ---
+        // --- TREBUCHET TRAIL ---
         for (let i = missiles.length - 1; i >= 0; i--) { 
             let m = missiles[i]; 
             if (!isHiddenInFog(m.x, m.y, m.team)) {
-                let dirX = m.vx / m.speed;
-                let dirY = m.vy / m.speed;
+                let dirX = m.vx / (m.speed || 1);
+                let dirY = m.vy / (m.speed || 1);
                 let trailOffsetX = -dirX * 18; 
                 let trailOffsetY = -dirY * 18;
 
@@ -792,7 +823,6 @@
 
     function revealFog(gx, gy, radius) { if (isNaN(gx) || isNaN(gy)) return; for (let x = Math.max(0, Math.floor(gx-radius)); x <= Math.min(W-1, Math.ceil(gx+radius)); x++) { for (let y = Math.max(0, Math.floor(gy-radius)); y <= Math.min(TOTAL_H-1, Math.ceil(gy+radius)); y++) { if (Math.hypot(x - gx, y - gy) <= radius && fog[x]) fog[x][y] = false; } } }
 
-    // --- HÀM VẼ CÔNG TRÌNH (KHÓA THEO CHIỀU RỘNG GRID, TỰ ĐỘNG SCALE CAO ĐÚNG TỶ LỆ) ---
     function drawBuildingSprite(b, px, py, isGhost = false) {
         let img = loadedImages[b.type];
         ctx.save();
@@ -875,7 +905,7 @@
                 });
             }
         }
-        // 3. WATCHTOWER / T_BUNKER (KHÓA KHÍT GRID, BỎ SCALE 1.5)
+        // 3. WATCHTOWER / T_BUNKER
         else if (b.type === 'WATCHTOWER') {
             if (img && img.complete && img.naturalWidth !== 0) {
                 ctx.drawImage(img, px, py - offsetY, targetW, targetH);
@@ -924,7 +954,7 @@
                 ctx.restore();
             }
         }
-        // 5. TREBUCHET (3x4 SPRITESHEET 6 FRAMES)
+        // 5. TREBUCHET
         else if (b.type === 'TREBUCHET') {
             let tImg = loadedImages['TREBUCHET']; 
             if (tImg && tImg.complete && tImg.naturalWidth !== 0) {
@@ -1106,7 +1136,7 @@
             } catch(e) {}
         });
 
-        // --- PREVIEW KHI ĐANG DRAG: NHẤC CAO HƠN NGÓN TAY 2 Ô GRID (LIFT-DRAG) ---
+        // PREVIEW KHI ĐANG DRAG (LIFT-DRAG NHẤC CAO 2 Ô)
         if (draggingBuilding !== null && gamePhase === 'PREP') {
             let fingerOffsetY = -2 * C;
             let targetWy = mouseWy + fingerOffsetY;
@@ -1158,7 +1188,6 @@
             ctx.restore();
         });
 
-        // --- Y-SORTING UNITS (ANIMATION IDLE CHÂN CHẠM ĐẤT TỰ NHIÊN) ---
         let sortedUnits = [...units].sort((a, b) => a.y - b.y);
 
         sortedUnits.forEach(u => {
@@ -1183,7 +1212,6 @@
                 scaleX = 1.15;
                 scaleY = 0.85;
             } else {
-                // IDLE: Chỉ co bóp nhẹ nhàng bằng Squash & Stretch, giữ chân chạm đất
                 let breath = Math.sin(Date.now() / 400 + u.x * 0.5);
                 scaleY = 1 + breath * 0.03;
                 scaleX = 1 - breath * 0.02;
