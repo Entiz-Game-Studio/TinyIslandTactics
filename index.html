@@ -83,6 +83,131 @@
     const ctx = canvas.getContext('2d');
     const gameArea = document.getElementById('gameArea');
 
+    // --- HỆ THỐNG ÂM THANH WEB AUDIO SYNTHESIZER ---
+    const AudioEngine = {
+        ctx: null,
+        init() {
+            if (!this.ctx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) this.ctx = new AudioContext();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        },
+        playWarHorn() {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            
+            osc.frequency.setValueAtTime(140, now);
+            osc.frequency.exponentialRampToValueAtTime(210, now + 0.35);
+            osc.frequency.setValueAtTime(210, now + 1.2);
+            osc.frequency.exponentialRampToValueAtTime(120, now + 1.8);
+
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.35, now + 0.2);
+            gain.gain.setValueAtTime(0.35, now + 1.3);
+            gain.gain.linearRampToValueAtTime(0, now + 1.8);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 1.8);
+        },
+        playExplosion(isBig = false) {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const dur = isBig ? 1.0 : 0.45;
+            const bufferSize = this.ctx.sampleRate * dur;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(isBig ? 240 : 400, now);
+            filter.frequency.exponentialRampToValueAtTime(30, now + dur);
+
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(isBig ? 0.6 : 0.35, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + dur);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            noise.start(now);
+        },
+        playArrow() {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(250, now + 0.08);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.08);
+        },
+        playBunker() {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(160, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        },
+        playBallista() {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(320, now);
+            osc.frequency.exponentialRampToValueAtTime(90, now + 0.22);
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.22);
+        }
+    };
+
+    let hasTriggeredWarHorn = false;
+
+    // --- SHAKE CAMERA ENGINE ---
+    let shakeDuration = 0;
+    let shakeIntensity = 0;
+    let shakeOffsetX = 0;
+    let shakeOffsetY = 0;
+
+    function triggerShake(intensity, duration) {
+        shakeIntensity = Math.max(shakeIntensity, intensity);
+        shakeDuration = Math.max(shakeDuration, duration);
+    }
+
     const ASSET_PATHS = {
         'CASTLE_BASE': 'assets/T_Castle_Base.png',
         'ARCHER_BASE': 'assets/T_Archer_Base.png', 
@@ -115,7 +240,6 @@
     }
     preloadAssets();
 
-    // BẢN ĐỒ RỘNG 41 Ô, BIỂN 10 Ô, DỌC 50 Ô
     const C = 16; 
     const W = 41; 
     const ISLAND_H = 20; 
@@ -128,7 +252,6 @@
     
     const UNIT_STATS = { CYCLOP: { buildTime: 30, maxCap: 1 }, TROLL_JAVELIN: { buildTime: 10, maxCap: 3 } };
     
-    // ARCHER 3x3, CASTLE 6x4, BUNKER 3x3, JAVELIN 4x3, CYCLOP 5x4
     const STATS = {
         MAGE_TOWER:   { w: 6, h: 4, hp: 5000, reload: 20, atkRange: 0 }, 
         TREBUCHET:    { w: 3, h: 4, hp: 800, reload: 30, atkRange: 0 }, 
@@ -140,10 +263,20 @@
     };
 
     const MAX_VISIBLE_V_CELLS = 46;
+    const CENTER_CAM_Y = (TOTAL_H * C) / 2;
     let camX = (W * C) / 2; 
-    let camY = (TOTAL_H * C) / 2; 
+    let camY = CENTER_CAM_Y; 
     let defaultZoom = 0.8;
     let camZoom = defaultZoom; 
+
+    function getMinZoom() {
+        return defaultZoom * 0.85;
+    }
+
+    function clampCamY(y) {
+        const maxPanOffset = 2 * C;
+        return Math.max(CENTER_CAM_Y - maxPanOffset, Math.min(CENTER_CAM_Y + maxPanOffset, y));
+    }
 
     function resizeCanvas() { 
         const w = gameArea.clientWidth || window.innerWidth || 360;
@@ -158,21 +291,21 @@
         ctx.imageSmoothingEnabled = false;
         
         defaultZoom = Math.max(0.1, h / (MAX_VISIBLE_V_CELLS * C));
-        camZoom = Math.max(defaultZoom, camZoom);
+        camZoom = defaultZoom;
         
         camX = (W * C) / 2;
-        camY = (TOTAL_H * C) / 2;
+        camY = CENTER_CAM_Y;
     }
     window.addEventListener('resize', resizeCanvas); 
     window.addEventListener('DOMContentLoaded', resizeCanvas);
     resizeCanvas();
     camZoom = defaultZoom;
 
-    // PINCH-TO-ZOOM
     let touchStartDist = 0;
     let touchStartZoom = 1;
 
     canvas.addEventListener('touchstart', (e) => {
+        AudioEngine.init();
         if (e.touches.length === 2) {
             let dx = e.touches[0].clientX - e.touches[1].clientX;
             let dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -189,7 +322,7 @@
             let dist = Math.hypot(dx, dy);
             let factor = dist / touchStartDist;
             let newZoom = touchStartZoom * factor;
-            camZoom = Math.max(defaultZoom, Math.min(2.5, newZoom));
+            camZoom = Math.max(getMinZoom(), Math.min(2.5, newZoom));
         }
     }, { passive: false });
 
@@ -197,21 +330,23 @@
         if (e.touches.length < 2) touchStartDist = 0;
     });
 
-    // ZOOM WHEEL
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const zoomFactor = 1.1;
         let newZoom = e.deltaY < 0 ? camZoom * zoomFactor : camZoom / zoomFactor;
-        newZoom = Math.max(defaultZoom, Math.min(2.5, newZoom));
+        newZoom = Math.max(getMinZoom(), Math.min(2.5, newZoom));
         
         if (newZoom !== camZoom) {
             let rect = canvas.getBoundingClientRect();
             let mouseX = e.clientX - rect.left;
+            let mouseY = e.clientY - rect.top;
             let wx = (mouseX - rect.width / 2) / camZoom + camX;
+            let wy = (mouseY - rect.height / 2) / camZoom + camY;
             camZoom = newZoom;
             camX = wx - (mouseX - canvas.width / 2) / camZoom;
+            camY = wy - (mouseY - canvas.height / 2) / camZoom;
             camX = Math.max(0, Math.min(W * C, camX));
-            camY = (TOTAL_H * C) / 2;
+            camY = clampCamY(camY);
         }
     }, { passive: false });
 
@@ -232,13 +367,22 @@
     let playerMechRageTimer = 0; let aiMechRageTimer = 0; let playerMechHealTimer = 0; let aiMechHealTimer = 0; let playerCmEvadeRate = 0; let aiCmEvadeRate = 0; 
     let isGameOver = false; let selectedEntity = null;
     let buildings = []; let missiles = []; let mortars = []; let interceptors = []; let tracers = []; let particles = []; let floatingTexts = []; let shockwaves = []; let units = []; let deadUnits = []; let porters = []; let activeMissions = []; let decals = []; 
-    let isPanning = false; let lastPanX = 0; 
+    let isPanning = false; 
+    let lastPanX = 0, lastPanY = 0; 
     let draggingBuilding = null;
     let mouseWx = 0, mouseWy = 0;
 
     function isFogged(gx, gy) { if (isNaN(gx) || isNaN(gy) || gx < 0 || gx >= W || gy < 0 || gy >= TOTAL_H) return false; return fog[gx] && fog[gx][gy] !== undefined ? fog[gx][gy] : false; }
     function isHiddenInFog(x, y, team) { return team === 0 ? false : isFogged(Math.floor(x / C), Math.floor(y / C)); }
     function updateStatsUI() { if (gamePhase === 'COMBAT') { let elAcc = document.getElementById('accTxt'); if (elAcc) elAcc.innerText = (playerAamHitRate * 100).toFixed(0); } }
+
+    function notifyPlayerAttacked() {
+        if (!hasTriggeredWarHorn && gamePhase === 'COMBAT') {
+            hasTriggeredWarHorn = true;
+            AudioEngine.playWarHorn();
+            showTextMsg("🚨 BASE UNDER ATTACK!");
+        }
+    }
 
     let terrainTrees = [
         { gx: 2, gy: ENEMY_Y_START + 3 },
@@ -416,41 +560,36 @@
         }
     }
 
-    // ĐỘI HÌNH KHỞI TẠO BỐ TRÍ HỢP LÝ TRÊN ĐẢO 41 Ô
     function startPrepPhase() {
+        AudioEngine.init();
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
         showTextMsg("DRAG AND DROP TO DEPLOY"); 
         gamePhase = 'PREP'; 
         prepTimer = 30;
 
-        // Castle 6x4 ở giữa
         buildings.push(new Building(17, 39, 'MAGE_TOWER', 0)); 
         
-        // 5 Ballista (3x3 ô) tại hàng Y = 32
         let aamX = [4, 11, 18, 25, 32]; 
         aamX.forEach(x => buildings.push(new Building(x, 32, 'BALLISTA', 0))); 
         
-        // 4 Archer Tower (3x3 ô) tại hàng Y = 36
         let ciwsX = [5, 13, 23, 31]; 
         ciwsX.forEach(x => buildings.push(new Building(x, 36, 'ARCHER_TOWER', 0))); 
         
-        // 3 Bunker (3x3 ô) tại hàng Y = 39 và 44
         buildings.push(new Building(6, 39, 'WATCHTOWER', 0));
         buildings.push(new Building(29, 39, 'WATCHTOWER', 0));
         buildings.push(new Building(18, 44, 'WATCHTOWER', 0));
         
-        // 3 Trebuchet (3x4 ô)
         buildings.push(new Building(11, 43, 'TREBUCHET', 0)); 
         buildings.push(new Building(25, 43, 'TREBUCHET', 0)); 
         buildings.push(new Building(35, 43, 'TREBUCHET', 0)); 
         
-        // Nhà Troll 4x3 và Hang Cyclop 5x4
         buildings.push(new Building(4, 43, 'JAVELIN_HUT', 0)); 
         buildings.push(new Building(29, 43, 'CYCLOP_CAVE', 0)); 
     }
 
     function startCombatPhase() {
+        AudioEngine.init();
         draggingBuilding = null;
         gamePhase = 'COMBAT'; 
         document.getElementById('btnSaveFormation').style.display = 'none';
@@ -480,6 +619,7 @@
     }
 
     canvas.addEventListener('pointerdown', (e) => {
+        AudioEngine.init();
         if (e.button !== 0 || isGameOver || isDrafting || touchStartDist > 0) return;
         let coords = getWorldCoords(e.clientX, e.clientY); 
         let gx = Math.floor(coords.wx / C); 
@@ -534,7 +674,6 @@
                     if (img && img.complete && img.naturalWidth !== 0) targetH = drawW * (img.naturalHeight / img.naturalWidth);
                     let offsetY = targetH - (hq.h * C);
                     
-                    // Điểm xuất phát đạn đồng bộ vị trí Pháp sư mới
                     let staffHeadX = (hq.gx * C + drawW / 2 + 10) + 8;
                     let staffHeadY = (hq.gy * C - offsetY - 6) - 22;
                     mortars.push(new MortarShell(staffHeadX, staffHeadY, coords.wx, coords.wy, 0, playerHqDmgMod)); 
@@ -568,6 +707,7 @@
 
         isPanning = true; 
         lastPanX = e.clientX;
+        lastPanY = e.clientY;
     });
 
     window.addEventListener('pointermove', e => { 
@@ -576,9 +716,11 @@
 
         if (isPanning && touchStartDist === 0) { 
             camX -= (e.clientX - lastPanX) / camZoom; 
+            camY -= (e.clientY - lastPanY) / camZoom; 
             lastPanX = e.clientX; 
+            lastPanY = e.clientY;
             camX = Math.max(0, Math.min(W * C, camX)); 
-            camY = (TOTAL_H * C) / 2;
+            camY = clampCamY(camY); 
         } 
     });
 
@@ -643,6 +785,19 @@
     }
 
     function updateLogic(dt) {
+        // CẬP NHẬT SHAKE CAM
+        if (shakeDuration > 0) {
+            shakeDuration -= dt;
+            shakeOffsetX = (Math.random() - 0.5) * shakeIntensity * 2;
+            shakeOffsetY = (Math.random() - 0.5) * shakeIntensity * 2;
+            shakeIntensity = Math.max(0, shakeIntensity - dt * 25);
+            if (shakeDuration <= 0) {
+                shakeOffsetX = 0;
+                shakeOffsetY = 0;
+                shakeIntensity = 0;
+            }
+        }
+
         if (gamePhase === 'PREP') { prepTimer -= dt; document.getElementById('timerTxt').innerText = Math.max(0, Math.ceil(prepTimer)) + 's'; if (prepTimer <= 0) startCombatPhase(); } 
         else if (gamePhase === 'COMBAT') { gameTime -= dt; draftTimer -= dt; document.getElementById('draftTxt').innerText = Math.ceil(draftTimer); if (draftTimer <= 0) { draftTimer = 30; showDraft(); } if (gameTime <= 0) { isGameOver = true; setTimeout(() => { alert("Time's up! It's a draw!"); location.reload(); }, 500); } let m = Math.max(0, Math.floor(gameTime / 60)); let s = Math.max(0, Math.floor(gameTime % 60)); document.getElementById('timerTxt').innerText = `0${m}:${s.toString().padStart(2, '0')}`; aiBehavior(dt); }
         if (playerRepairTimer > 0) { playerRepairTimer -= dt; let heal = playerRepairRate * dt; buildings.filter(b => b.team===0 && b.hp > 0).forEach(b => b.hp = Math.min(b.maxHp, b.hp + b.maxHp * heal)); }
@@ -658,6 +813,16 @@
                 b.destroyed = true;
                 let scorchRadius = Math.max(b.w, b.h) * C * 0.75;
                 addScorchMark(b.cx, b.cy, scorchRadius, 'rgba(15, 10, 5, 0.75)');
+                
+                // RUNG MÀN HÌNH THEO TẦNG CÔNG TRÌNH (CASTLE RUNG MẠNH NHẤT)
+                if (b.type === 'MAGE_TOWER') {
+                    triggerShake(28, 1.0); // Castle rung kịch liệt
+                    AudioEngine.playExplosion(true);
+                } else {
+                    triggerShake(12, 0.45); // Công trình khác rung mạnh
+                    AudioEngine.playExplosion(false);
+                }
+
                 for(let k = 0; k < 15; k++) {
                     particles.push({
                         x: b.cx + (Math.random() - 0.5) * (b.w * C),
@@ -713,11 +878,14 @@
                                 let spawnY = b.gy * C - offsetY + (targetH * 0.4) + p.oy;
 
                                 tracers.push({sx: spawnX, sy: spawnY, tx: target.x, ty: target.y, life: 0.15, maxLife: 0.15, type: 'PROJ_ARCHER'}); 
+                                AudioEngine.playArrow();
                             }
                             target.hp -= 36; 
+                            if (target.team === 0) notifyPlayerAttacked();
                             b.currentReload = b.reloadTime; 
                         } else if (b.type === 'BALLISTA') { 
                             interceptors.push({x: b.cx, y: b.cy, target: target, speed: 250, life: 3, isMiss: Math.random() >= (b.team === 0 ? playerAamHitRate : aiAamHitRate), team: b.team}); 
+                            AudioEngine.playBallista();
                             b.currentReload = b.reloadTime; 
                         } 
                     } 
@@ -729,7 +897,9 @@
                     b.currentReload = b.reloadTime; 
                     let target = enemies[0]; 
                     tracers.push({sx: b.cx, sy: b.cy, tx: target.x, ty: target.y, life: 0.15, maxLife: 0.15, type: 'PROJ_BUNKER'}); 
+                    AudioEngine.playBunker();
                     target.hp -= 70; 
+                    if (target.team === 0) notifyPlayerAttacked();
                 } 
             }
         });
@@ -786,12 +956,22 @@
                         u.attackTimer = 0.35;
 
                         if (u.type === 'CYCLOP') {
-                            if (u.aoe > 0) potentialTargets.forEach(e => { if(Math.hypot((e.cx||e.x) - targetX, (e.cy||e.y) - targetY) <= u.aoe) e.hp -= u.dmg; }); 
-                            else closest.hp -= u.dmg; 
+                            if (u.aoe > 0) {
+                                potentialTargets.forEach(e => { 
+                                    if(Math.hypot((e.cx||e.x) - targetX, (e.cy||e.y) - targetY) <= u.aoe) {
+                                        e.hp -= u.dmg;
+                                        if (e.team === 0) notifyPlayerAttacked();
+                                    }
+                                });
+                            } else {
+                                closest.hp -= u.dmg;
+                                if (closest.team === 0) notifyPlayerAttacked();
+                            }
                             particles.push({x: targetX, y: targetY, vx: 0, vy: 0, life: 0.2, maxLife: 0.2, size: 20, color: '#fbc02d', type: 'slash', angle: u.angle}); 
                         } else if (u.type === 'TROLL_JAVELIN') {
                             tracers.push({sx: u.x, sy: u.y, tx: targetX, ty: targetY, life: 0.2, maxLife: 0.2, type: 'PROJ_JAVELIN'});
                             closest.hp -= u.dmg;
+                            if (closest.team === 0) notifyPlayerAttacked();
                         }
                     } 
                 } else { 
@@ -928,6 +1108,11 @@
 
     function triggerExplosion(gx, gy, px, py, shooterTeam, damageMultiplier, effectType = 'fire') {
         let radius = 4.5;
+        
+        // RUNG MÀN HÌNH KHI ĐẠN TREBUCHET HOẶC MAGE NỔ
+        triggerShake(6, 0.25);
+        AudioEngine.playExplosion(false);
+
         let pColors = effectType === 'magic' ? ['#d500f9', '#aa00ff', '#ea80fc', '#7c4dff'] : ['#ff3d00', '#ff9100', '#ffea00', '#dd2c00'];
         for(let i=0; i<30; i++) {
             let col = pColors[Math.floor(Math.random() * pColors.length)];
@@ -943,11 +1128,17 @@
         let baseDmg = 1500 * damageMultiplier;
         buildings.filter(b => b.team === targetTeam && b.hp > 0).forEach(b => { 
             let dist = Math.hypot((b.gx + b.w/2) - gx, (b.gy + b.h/2) - gy); 
-            if (dist <= radius) b.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); 
+            if (dist <= radius) {
+                b.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); 
+                if (targetTeam === 0) notifyPlayerAttacked();
+            }
         });
         units.filter(u => u.team === targetTeam).forEach(u => { 
             let dist = Math.hypot(u.x - gx*C, u.y - gy*C) / C; 
-            if (dist <= radius) u.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); 
+            if (dist <= radius) {
+                u.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); 
+                if (targetTeam === 0) notifyPlayerAttacked();
+            }
         });
     }
 
@@ -1046,7 +1237,7 @@
                 ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
             }
         }
-        // 4. MAGE TOWER (CASTLE 6x4 Ô - PHÁP SƯ DỊCH LÊN TRÊN VÀ LỆCH PHẢI)
+        // 4. MAGE TOWER (CASTLE 6x4 Ô)
         else if (b.type === 'MAGE_TOWER') {
             let baseImg = loadedImages['CASTLE_BASE'];
             let mageImg = loadedImages['U_MAGE_01'];
@@ -1059,7 +1250,6 @@
                 ctx.fillRect(px, py - offsetY, targetW, targetH); 
             }
             
-            // Dịch pháp sư lên trên và lệch phải (+10 X, -6 Y)
             let staffX = px + targetW / 2 + 10;
             let staffY = py - offsetY - 6;
 
@@ -1120,7 +1310,7 @@
                 ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
             }
         }
-        // 6. CÁC KIẾN TRÚC CÒN LẠI (HUT 4x3, CAVE 5x4)
+        // 6. CÁC KIẾN TRÚC CÒN LẠI
         else {
             if (img && img.complete && img.naturalWidth !== 0) {
                 ctx.drawImage(img, px, py - offsetY, targetW, targetH); 
@@ -1149,7 +1339,6 @@
         ctx.closePath();
     }
 
-    // CHỮ READY DỜI LÊN NGAY DƯỚI CHÂN PHÁP SƯ ĐỐI VỚI MAGE TOWER
     function drawCooldownOrReadyUI(b, px, py, targetH, offsetY) {
         if (b.team !== 0 || gamePhase !== 'COMBAT') return;
         const targetTypes = ['MAGE_TOWER', 'TREBUCHET', 'JAVELIN_HUT', 'CYCLOP_CAVE'];
@@ -1203,8 +1392,6 @@
             ctx.restore();
         } else if (isReady) {
             ctx.save();
-            
-            // Riêng Castle thì đưa chữ READY lên ngay dưới chân pháp sư
             let textX = centerX;
             let textY = py + (b.h * C) + 9;
             if (b.type === 'MAGE_TOWER') {
@@ -1231,16 +1418,13 @@
     }
 
     function drawWorld() {
-        // RÌA MÀU CÁT BIỂN
         ctx.fillStyle = '#e4d59e'; 
         ctx.fillRect(0, ENEMY_Y_START * C, W * C, ISLAND_H * C); 
         ctx.fillRect(0, PLAYER_Y_START * C, W * C, ISLAND_H * C);
 
-        // NƯỚC BIỂN
         ctx.fillStyle = '#4fc3f7'; 
         ctx.fillRect(0, SEA_Y_START * C, W * C, SEA_H * C);   
 
-        // MẶT ĐẢO BÊN TRONG MÀU XANH NHẠT
         ctx.fillStyle = '#8bc34a'; 
         ctx.fillRect(2 * C, ENEMY_Y_START * C + 2 * C, (W - 4) * C, (ISLAND_H - 4) * C); 
         ctx.fillRect(2 * C, PLAYER_Y_START * C + 2 * C, (W - 4) * C, (ISLAND_H - 4) * C);
@@ -1452,7 +1636,6 @@
             }
         });
 
-        // ĐẠN MAGE TO 150% + PHẬP PHỒNG
         mortars.forEach(m => { 
             if (!isHiddenInFog(m.x, m.y, m.team)) { 
                 let img = loadedImages['U_Mage_01_bullet'];
@@ -1472,7 +1655,6 @@
             } 
         }); 
 
-        // ĐẠN TREBUCHET TO 150% + PHẬP PHỒNG
         missiles.forEach(m => { 
             if (!isHiddenInFog(m.x, m.y, m.team)) { 
                 let img = loadedImages['PROJ_TREBUCHET'];
@@ -1494,7 +1676,7 @@
             } 
         }); 
 
-        // BALLOON TO 72PX KÈM BLOB SHADOW
+        // BALLOON: BÓNG NHỎ ĐI 1 NỬA VÀ ĐẨY XA XUỐNG DƯỚI THÊM (+52px)
         porters.forEach(p => {
             if (isHiddenInFog(p.x, p.y, p.team)) return;
             let img = loadedImages['DIRIGIBLE'];
@@ -1505,11 +1687,11 @@
                 bHeight = bWidth * (img.naturalHeight / img.naturalWidth);
             }
 
-            // BLOB SHADOW
+            // BLOB SHADOW NHỎ GỌN
             ctx.save();
-            ctx.translate(p.x, p.y + 35);
+            ctx.translate(p.x, p.y + 52);
             ctx.beginPath();
-            ctx.ellipse(0, 0, bWidth * 0.38, bHeight * 0.18, 0, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, bWidth * 0.19, bHeight * 0.09, 0, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
             ctx.fill();
             ctx.restore();
@@ -1566,7 +1748,7 @@
         
         const cssWidth = canvas.width / dpr;
         const cssHeight = canvas.height / dpr;
-        ctx.translate(cssWidth / 2, cssHeight / 2); 
+        ctx.translate(cssWidth / 2 + shakeOffsetX, cssHeight / 2 + shakeOffsetY); 
         
         ctx.scale(camZoom, camZoom); 
         ctx.translate(-camX, -camY); 
