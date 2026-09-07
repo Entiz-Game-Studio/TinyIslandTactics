@@ -114,12 +114,12 @@
     }
     preloadAssets();
 
-    // CẤU HÌNH BẢN ĐỒ: ĐẨY ĐẢO NGƯỜI CHƠI LÊN 2 Ô, BIỂN CÒN 14 Ô
+    // CẤU HÌNH BẢN ĐỒ: ĐẢO 20 Ô, BIỂN 14 Ô, TỔNG 54 Ô
     const C = 16; 
     const W = 36; 
     const ISLAND_H = 20; 
     const SEA_H = 14; 
-    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 20 + 14 + 20 = 54
+    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 54
     const ENEMY_Y_START = 0; 
     const SEA_Y_START = 20; 
     const PLAYER_Y_START = 34; 
@@ -137,7 +137,7 @@
         CYCLOP_CAVE:  { w: 4, h: 2, hp: 3000, reload: 0, atkRange: 0 } 
     };
 
-    // ZOOM BAO TRỌN 55 Ô DỌC ĐỂ KHÔNG BỊ THANH UI CHE KHUẤT CHÂN ĐẢO
+    // CAMERA & ZOOM ĐÚNG 55 Ô DỌC
     const MAX_VISIBLE_V_CELLS = 55;
     let camX = (W * C) / 2; 
     let camY = (TOTAL_H * C) / 2; 
@@ -147,8 +147,14 @@
     function resizeCanvas() { 
         const w = gameArea.clientWidth || window.innerWidth || 360;
         const h = gameArea.clientHeight || window.innerHeight || 640;
-        canvas.width = w; 
-        canvas.height = h; 
+        
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.5); 
+        canvas.width = Math.floor(w * dpr); 
+        canvas.height = Math.floor(h * dpr); 
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        
+        ctx.imageSmoothingEnabled = false;
         
         defaultZoom = Math.max(0.1, h / (MAX_VISIBLE_V_CELLS * C));
         camZoom = Math.max(defaultZoom, camZoom);
@@ -202,7 +208,7 @@
         if (newZoom !== camZoom) {
             let rect = canvas.getBoundingClientRect();
             let mouseX = e.clientX - rect.left;
-            let wx = (mouseX - canvas.width / 2) / camZoom + camX;
+            let wx = (mouseX - rect.width / 2) / camZoom + camX;
             camZoom = newZoom;
             camX = wx - (mouseX - canvas.width / 2) / camZoom;
             camX = Math.max(0, Math.min(W * C, camX));
@@ -212,8 +218,12 @@
 
     function getWorldCoords(clientX, clientY) { 
         const rect = canvas.getBoundingClientRect(); 
-        let mx = clientX - rect.left; let my = clientY - rect.top; 
-        return { wx: (mx - canvas.width / 2) / camZoom + camX, wy: (my - canvas.height / 2) / camZoom + camY }; 
+        let mx = clientX - rect.left; 
+        let my = clientY - rect.top; 
+        return { 
+            wx: (mx - rect.width / 2) / camZoom + camX, 
+            wy: (my - rect.height / 2) / camZoom + camY 
+        }; 
     }
 
     let gamePhase = 'IDLE'; let prepTimer = 30; let gameTime = 360; let draftTimer = 30; let isDrafting = false; 
@@ -291,7 +301,16 @@
         constructor(sx, sy, team) { this.x = sx; this.y = sy; this.team = team; this.hp = 1150; this.maxHp = 1150; this.speed = 60; this.state = 'FLYING_TO_PORT'; this.cargo = []; this.tx = 0; this.ty = 0; this.angle = -Math.PI/2; this.mission = null; }
     }
 
-    function createGradientCrater(x, y, r) { decals.push({type: 'gradient', x: x, y: y, r: r, life: 8, maxLife: 8}); }
+    function addScorchMark(x, y, r, color = 'rgba(20, 15, 10, 0.75)') {
+        decals.push({
+            x: x, 
+            y: y, 
+            r: r, 
+            color: color, 
+            life: 3.0, 
+            maxLife: 3.0
+        });
+    }
 
     function setupAIFullDefenses() {
         buildings.push(new Building(15, 2, 'MAGE_TOWER', 1));
@@ -376,7 +395,6 @@
         }
     }
 
-    // ĐỘI HÌNH PHE TA: ĐẨY TOÀN BỘ LÊN 2 Ô (PLAYER_Y_START = 34)
     function startPrepPhase() {
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
@@ -603,13 +621,37 @@
         if (gamePhase === 'PREP') { prepTimer -= dt; document.getElementById('timerTxt').innerText = Math.max(0, Math.ceil(prepTimer)) + 's'; if (prepTimer <= 0) startCombatPhase(); } 
         else if (gamePhase === 'COMBAT') { gameTime -= dt; draftTimer -= dt; document.getElementById('draftTxt').innerText = Math.ceil(draftTimer); if (draftTimer <= 0) { draftTimer = 30; showDraft(); } if (gameTime <= 0) { isGameOver = true; setTimeout(() => { alert("Time's up! It's a draw!"); location.reload(); }, 500); } let m = Math.max(0, Math.floor(gameTime / 60)); let s = Math.max(0, Math.floor(gameTime % 60)); document.getElementById('timerTxt').innerText = `0${m}:${s.toString().padStart(2, '0')}`; aiBehavior(dt); }
         if (playerRepairTimer > 0) { playerRepairTimer -= dt; let heal = playerRepairRate * dt; buildings.filter(b => b.team===0 && b.hp > 0).forEach(b => b.hp = Math.min(b.maxHp, b.hp + b.maxHp * heal)); }
-        decals.forEach(d => d.life -= dt); decals = decals.filter(d => d.life > 0);
+        
+        decals.forEach(d => d.life -= dt); 
+        decals = decals.filter(d => d.life > 0);
 
         let pRapid = playerRapidTimer > 0 ? 1.3 : 1; let aRapid = aiRapidTimer > 0 ? 1.3 : 1;
         buildings.forEach(b => { if (b.team === 0 && b.hp > 0) revealFog(Math.floor(b.cx/C), Math.floor(b.cy/C), (b.atkRange > 0 ? b.atkRange : 6*C)/C); });
 
         buildings.forEach(b => {
-            if (b.hp <= 0) return; let mult = b.team === 0 ? pRapid : aRapid; if (b.currentReload > 0) b.currentReload -= dt * mult; 
+            if (b.hp <= 0 && !b.destroyed) {
+                b.destroyed = true;
+                let scorchRadius = Math.max(b.w, b.h) * C * 0.75;
+                addScorchMark(b.cx, b.cy, scorchRadius, 'rgba(15, 10, 5, 0.75)');
+                for(let k = 0; k < 15; k++) {
+                    particles.push({
+                        x: b.cx + (Math.random() - 0.5) * (b.w * C),
+                        y: b.cy + (Math.random() - 0.5) * (b.h * C),
+                        vx: (Math.random() - 0.5) * 25,
+                        vy: -15 - Math.random() * 20,
+                        life: 0.8,
+                        maxLife: 0.8,
+                        size: Math.random() * 5 + 3,
+                        color: 'rgba(50, 40, 35, 0.8)',
+                        type: 'smoke'
+                    });
+                }
+            }
+            if (b.hp <= 0) return; 
+
+            let mult = b.team === 0 ? pRapid : aRapid; 
+            if (b.currentReload > 0) b.currentReload -= dt * mult; 
+            
             if (b.type === 'JAVELIN_HUT' || b.type === 'CYCLOP_CAVE') { 
                 let unitType = b.type === 'JAVELIN_HUT' ? 'TROLL_JAVELIN' : 'CYCLOP'; 
                 let stats = UNIT_STATS[unitType]; 
@@ -744,7 +786,13 @@
         }
 
         for (let i = porters.length - 1; i >= 0; i--) { 
-            let p = porters[i]; if (p.hp <= 0) { porters.splice(i, 1); continue; } 
+            let p = porters[i]; 
+            if (p.hp <= 0) { porters.splice(i, 1); continue; } 
+
+            if (p.team === 0) {
+                revealFog(Math.floor(p.x / C), Math.floor(p.y / C), 4.5);
+            }
+
             if (p.state === 'PICKING_UP') { 
                 let readyTroops = units.filter(u => u.mission === p.mission && u.state === 'WAITING_FOR_AIRPORT'); 
                 if (readyTroops.length === p.mission.expected) { 
@@ -796,9 +844,15 @@
             } 
         }
         
-        // --- TREBUCHET TRAIL ---
+        // --- TREBUCHET TRAIL & MỞ SƯƠNG MÙ TRÊN ĐƯỜNG BAY ---
         for (let i = missiles.length - 1; i >= 0; i--) { 
             let m = missiles[i]; 
+
+            // ĐẠN TREBUCHET PHE TA MỞ SƯƠNG MÙ XUNG QUANH VỊ TRÍ BAY (BÁN KÍNH 3 Ô)
+            if (m.team === 0) {
+                revealFog(Math.floor(m.x / C), Math.floor(m.y / C), 3.0);
+            }
+
             if (!isHiddenInFog(m.x, m.y, m.team)) {
                 let dirX = m.vx / (m.speed || 1);
                 let dirY = m.vy / (m.speed || 1);
@@ -848,6 +902,7 @@
         updateButtonsUI();
     }
 
+    // NỔ ĐẠN VÀ TẠO VẾT CHÁY TRÒN MỜ DẦN TRONG 3S + MỞ SƯƠNG MÙ
     function triggerExplosion(gx, gy, px, py, shooterTeam, damageMultiplier, effectType = 'fire') {
         let radius = 4.5;
         let pColors = effectType === 'magic' ? ['#d500f9', '#aa00ff', '#ea80fc', '#7c4dff'] : ['#ff3d00', '#ff9100', '#ffea00', '#dd2c00'];
@@ -855,10 +910,22 @@
             let col = pColors[Math.floor(Math.random() * pColors.length)];
             particles.push({x: px, y: py, vx: (Math.random()-0.5)*50, vy: (Math.random()-0.5)*50, life: 0.7, maxLife: 0.7, size: Math.random()*5+2, color: col, type: effectType});
         }
+
+        let markColor = effectType === 'magic' ? 'rgba(74, 20, 140, 0.45)' : 'rgba(38, 20, 10, 0.55)';
+        addScorchMark(px, py, radius * C, markColor);
+
         if (shooterTeam === 0) revealFog(gx, gy, radius);
-        let targetTeam = (shooterTeam === 0) ? 1 : 0; let baseDmg = 1500 * damageMultiplier;
-        buildings.filter(b => b.team === targetTeam && b.hp > 0).forEach(b => { let dist = Math.hypot((b.gx + b.w/2) - gx, (b.gy + b.h/2) - gy); if (dist <= radius) b.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); });
-        units.filter(u => u.team === targetTeam).forEach(u => { let dist = Math.hypot(u.x - gx*C, u.y - gy*C) / C; if (dist <= radius) u.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); });
+
+        let targetTeam = (shooterTeam === 0) ? 1 : 0; 
+        let baseDmg = 1500 * damageMultiplier;
+        buildings.filter(b => b.team === targetTeam && b.hp > 0).forEach(b => { 
+            let dist = Math.hypot((b.gx + b.w/2) - gx, (b.gy + b.h/2) - gy); 
+            if (dist <= radius) b.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); 
+        });
+        units.filter(u => u.team === targetTeam).forEach(u => { 
+            let dist = Math.hypot(u.x - gx*C, u.y - gy*C) / C; 
+            if (dist <= radius) u.hp -= Math.floor(baseDmg - (baseDmg*2/3) * (dist/radius)); 
+        });
     }
 
     function revealFog(gx, gy, radius) { if (isNaN(gx) || isNaN(gy)) return; for (let x = Math.max(0, Math.floor(gx-radius)); x <= Math.min(W-1, Math.ceil(gx+radius)); x++) { for (let y = Math.max(0, Math.floor(gy-radius)); y <= Math.min(TOTAL_H-1, Math.ceil(gy+radius)); y++) { if (Math.hypot(x - gx, y - gy) <= radius && fog[x]) fog[x][y] = false; } } }
@@ -1131,6 +1198,21 @@
         ctx.fillStyle = '#4fc3f7'; ctx.fillRect(0, SEA_Y_START*C, W*C, SEA_H*C);   
         ctx.fillStyle = '#689f38'; ctx.fillRect(2*C, ENEMY_Y_START*C + 2*C, (W-4)*C, (ISLAND_H-4)*C); ctx.fillRect(2*C, PLAYER_Y_START*C + 2*C, (W-4)*C, (ISLAND_H-4)*C);
         
+        decals.forEach(d => {
+            let alpha = Math.max(0, d.life / d.maxLife);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            let grad = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
+            grad.addColorStop(0, d.color);
+            grad.addColorStop(0.7, d.color);
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
         if (gamePhase === 'PREP' || draggingBuilding !== null) {
             ctx.save();
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
@@ -1151,6 +1233,7 @@
         }
 
         ctx.fillStyle = '#33691e'; terrainTrees.forEach(t => { let tx = t.gx * C + C/2; let ty = t.gy * C + C/2; ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI*2); ctx.fill(); });
+        
         for(let x=0; x<W; x++) { for(let y=0; y<TOTAL_H; y++) { if(fog[x] && fog[x][y]) { ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(x*C, y*C, C, C); } } } 
 
         let sortedBuildings = [...buildings].sort((a, b) => a.gy - b.gy);
@@ -1374,12 +1457,21 @@
     }
 
     function draw() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+
         ctx.setTransform(1, 0, 0, 1, 0, 0); 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
         ctx.save(); 
-        ctx.translate(canvas.width / 2, canvas.height / 2); 
+        ctx.scale(dpr, dpr);
+        
+        const cssWidth = canvas.width / dpr;
+        const cssHeight = canvas.height / dpr;
+        ctx.translate(cssWidth / 2, cssHeight / 2); 
+        
         ctx.scale(camZoom, camZoom); 
         ctx.translate(-camX, -camY); 
+        
         drawWorld(); 
         ctx.restore();
     }
