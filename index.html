@@ -124,6 +124,36 @@
             osc.start(now);
             osc.stop(now + 1.8);
         },
+        playWhoosh() {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const dur = 0.4;
+            const bufferSize = this.ctx.sampleRate * dur;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(200, now);
+            filter.frequency.exponentialRampToValueAtTime(1200, now + dur * 0.5);
+            filter.frequency.exponentialRampToValueAtTime(300, now + dur);
+            filter.Q.value = 3.0;
+
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.01, now);
+            gain.gain.linearRampToValueAtTime(0.25, now + dur * 0.4);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.ctx.destination);
+            noise.start(now);
+        },
         playExplosion(isBig = false) {
             this.init();
             if (!this.ctx) return;
@@ -233,7 +263,7 @@
         'U_MAGE_01': 'assets/U_Mage_01.png',
         'U_ARCHER': 'assets/U_Archer.png',
         'BALLISTA_TOP': 'assets/T_Ballista_Top.png',
-        'DIRIGIBLE': 'assets/U_Balloon.png',
+        'DIRIGIBLE': 'assets/U_Balloon.png', // ĐÃ ĐỔI THÀNH U_Balloon.png
         'TROLL_JAVELIN': 'assets/U_TrollJavelin.png',
         'CYCLOP': 'assets/U_Cyclop.png',
         'PROJ_ARCHER': 'assets/T_Archer_Arrow.png',
@@ -413,6 +443,7 @@
             this.tgx = tgx; this.tgy = tgy; this.team = team; this.hp = 100; this.speed = 100;
             let dx = this.tx - this.x; let dy = this.ty - this.y; let dist = Math.hypot(dx, dy) || 1;
             this.vx = (dx / dist) * this.speed; this.vy = (dy / dist) * this.speed; this.angle = Math.atan2(dy, dx);
+            AudioEngine.playWhoosh(); // Âm thanh xé gió khi bắn Trebuchet
         }
     }
     class MortarShell {
@@ -420,6 +451,7 @@
             this.sx = sx; this.sy = sy; this.tx = tx; this.ty = ty; this.team = team; this.dmgMod = dmgMod;
             this.dist = Math.hypot(tx-sx, ty-sy); this.speed = 180;
             this.totalTime = Math.max(0.1, this.dist / this.speed); this.elapsed = 0; this.x = sx; this.y = sy; this.z = 0;
+            AudioEngine.playWhoosh(); // Âm thanh xé gió khi bắn Mage
         }
         update(dt) { 
             this.elapsed += dt; 
@@ -1172,7 +1204,7 @@
 
         let offsetY = targetH - (b.h * C);
 
-        // 1. BALLISTA
+        // 1. BALLISTA (SCALE TOP LÊN MỘT CHÚT XÍU: 1.15)
         if (b.type === 'BALLISTA') {
             let baseImg = loadedImages['BALLISTA_BASE'];
             let topImg = loadedImages['BALLISTA_TOP'];
@@ -1199,10 +1231,12 @@
                 let recoil = 0;
                 if (b.currentReload > b.reloadTime - 0.2) recoil = ((b.currentReload - (b.reloadTime - 0.2)) / 0.2) * 8; 
                 
-                ctx.drawImage(topImg, -baseW / 2, -baseH / 2 + recoil, baseW, baseH);
+                // Scale phần cánh nỏ to lên chút xíu (1.15)
+                let topScale = 1.15;
+                ctx.drawImage(topImg, (-baseW / 2) * topScale, (-baseH / 2 + recoil) * topScale, baseW * topScale, baseH * topScale);
                 
                 if (b.currentReload <= 0 && arrowImg && arrowImg.complete && arrowImg.naturalWidth !== 0) {
-                    ctx.drawImage(arrowImg, -6, -baseH / 2 + 2 + recoil, 12, 30);
+                    ctx.drawImage(arrowImg, -7, (-baseH / 2 + 2 + recoil) * topScale, 14, 34);
                 }
                 ctx.restore();
             }
@@ -1692,7 +1726,6 @@
                 bHeight = bWidth * (img.naturalHeight / img.naturalWidth);
             }
 
-            // BLOB SHADOW NHỎ GỌN, ĐẨY XA XUỐNG DƯỚI (+52px)
             ctx.save();
             ctx.translate(p.x, p.y + 52);
             ctx.beginPath();
