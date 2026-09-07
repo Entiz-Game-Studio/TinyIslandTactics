@@ -128,7 +128,7 @@
     
     const UNIT_STATS = { CYCLOP: { buildTime: 30, maxCap: 1 }, TROLL_JAVELIN: { buildTime: 10, maxCap: 3 } };
     
-    // ARCHER GIẢM TỐC 70% (RELOAD 0.115s), BUNKER TĂNG MÁU LÊN 4200 VÀ DAMAGE LÊN 70
+    // ARCHER 3x3, CASTLE 6x4, BUNKER 3x3, JAVELIN 4x3, CYCLOP 5x4
     const STATS = {
         MAGE_TOWER:   { w: 6, h: 4, hp: 5000, reload: 20, atkRange: 0 }, 
         TREBUCHET:    { w: 3, h: 4, hp: 800, reload: 30, atkRange: 0 }, 
@@ -240,7 +240,6 @@
     function isHiddenInFog(x, y, team) { return team === 0 ? false : isFogged(Math.floor(x / C), Math.floor(y / C)); }
     function updateStatsUI() { if (gamePhase === 'COMBAT') { let elAcc = document.getElementById('accTxt'); if (elAcc) elAcc.innerText = (playerAamHitRate * 100).toFixed(0); } }
 
-    // GIẢM SỐ LƯỢNG CÂY XUỐNG CHỈ CÒN 3 CÂY MỖI ĐẢO (ĐẶT Ở RÌA NGOÀI)
     let terrainTrees = [
         { gx: 2, gy: ENEMY_Y_START + 3 },
         { gx: W - 4, gy: ENEMY_Y_START + 5 },
@@ -294,12 +293,12 @@
             if(type === 'CYCLOP') { 
                 this.hp = 3000; this.maxHp = 3000; this.speed = 20; 
                 this.atkRange = 1.6 * C; this.reload = 1.0; this.dmg = 250; this.aoe = 2 * C; 
-                this.size = 16.8; // TĂNG 120%
+                this.size = 16.8; 
             } else if(type === 'TROLL_JAVELIN') { 
                 this.hp = 600; this.maxHp = 600; this.speed = 26; 
                 this.atkRange = 4.5 * C;
                 this.reload = 0.8; this.dmg = 50; this.aoe = 0; 
-                this.size = 9.1; // TĂNG 130%
+                this.size = 9.1; 
             } 
             this.viewRange = this.atkRange + 3 * C; this.currentReload = 0; this.angle = 0;
         }
@@ -312,7 +311,6 @@
         decals.push({ x: x, y: y, r: r, color: color, life: 3.0, maxLife: 3.0 });
     }
 
-    // CHECK VỊ TRÍ HỢP LỆ (TRÁNH ĐÈ CÔNG TRÌNH VÀ TRÁNH ĐÈ CÂY)
     function checkPlacementValid(type, gx, gy, ignoreBuilding = null) { 
         let w = STATS[type].w;
         let h = STATS[type].h;
@@ -330,7 +328,6 @@
         return !treeCollide;
     }
 
-    // AI RANDOM KHÔNG ĐÈ LÊN NHAU VÀ KHÔNG ĐÈ CÂY
     function setupAIFullDefenses() {
         let aiCastleX = 2 + Math.floor(Math.random() * (W - 4 - STATS['MAGE_TOWER'].w));
         let aiCastleY = ENEMY_Y_START + 2;
@@ -419,7 +416,7 @@
         }
     }
 
-    // ĐỘI HÌNH PHE TA: ĐÃ CĂN TỌA ĐỘ CHUẨN XÁC, CÁCH NHAU THOÁNG ĐÃNG, KHÔNG ĐÈ NHAU
+    // ĐỘI HÌNH KHỞI TẠO BỐ TRÍ HỢP LÝ TRÊN ĐẢO 41 Ô
     function startPrepPhase() {
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
@@ -434,11 +431,11 @@
         let aamX = [4, 11, 18, 25, 32]; 
         aamX.forEach(x => buildings.push(new Building(x, 32, 'BALLISTA', 0))); 
         
-        // 4 Archer Tower (3x2 ô) tại hàng Y = 36
+        // 4 Archer Tower (3x3 ô) tại hàng Y = 36
         let ciwsX = [5, 13, 23, 31]; 
         ciwsX.forEach(x => buildings.push(new Building(x, 36, 'ARCHER_TOWER', 0))); 
         
-        // 3 Bunker (3x3 ô) tại hàng Y = 39 (né Castle ra 2 bên và chính giữa dưới)
+        // 3 Bunker (3x3 ô) tại hàng Y = 39 và 44
         buildings.push(new Building(6, 39, 'WATCHTOWER', 0));
         buildings.push(new Building(29, 39, 'WATCHTOWER', 0));
         buildings.push(new Building(18, 44, 'WATCHTOWER', 0));
@@ -536,9 +533,11 @@
                     let img = loadedImages['CASTLE_BASE'];
                     if (img && img.complete && img.naturalWidth !== 0) targetH = drawW * (img.naturalHeight / img.naturalWidth);
                     let offsetY = targetH - (hq.h * C);
-                    let staffHeadX = (hq.gx * C + drawW / 2) + 8;
-					let staffHeadY = (hq.gy * C - offsetY + 6) - 22;
-					mortars.push(new MortarShell(staffHeadX, staffHeadY, coords.wx, coords.wy, 0, playerHqDmgMod)); 
+                    
+                    // Điểm xuất phát đạn đồng bộ vị trí Pháp sư mới
+                    let staffHeadX = (hq.gx * C + drawW / 2 + 10) + 8;
+                    let staffHeadY = (hq.gy * C - offsetY - 6) - 22;
+                    mortars.push(new MortarShell(staffHeadX, staffHeadY, coords.wx, coords.wy, 0, playerHqDmgMod)); 
                 }
             } else if (mode === 'TREBUCHET') {
                 if (selectedEntity && selectedEntity.currentReload > 0) { showTextMsg("Trebuchet is reloading, wait!"); } 
@@ -635,8 +634,9 @@
                 let img = loadedImages['CASTLE_BASE'];
                 if (img && img.complete && img.naturalWidth !== 0) targetH = drawW * (img.naturalHeight / img.naturalWidth);
                 let offsetY = targetH - (aiBase.h * C);
-                let staffHeadX = (aiBase.gx * C + drawW / 2) + 6;
-                let staffHeadY = (aiBase.gy * C - offsetY - 10 + C) - 18;
+                
+                let staffHeadX = (aiBase.gx * C + drawW / 2 + 10) + 8;
+                let staffHeadY = (aiBase.gy * C - offsetY - 6) - 22;
                 mortars.push(new MortarShell(staffHeadX, staffHeadY, (2 + Math.random()*(W-4))*C, (PLAYER_Y_START + 2 + Math.random()*(ISLAND_H-4))*C, 1, aiHqDmgMod)); 
             }
         }
@@ -714,7 +714,6 @@
 
                                 tracers.push({sx: spawnX, sy: spawnY, tx: target.x, ty: target.y, life: 0.15, maxLife: 0.15, type: 'PROJ_ARCHER'}); 
                             }
-                            // ARCHER DAMAGE TĂNG LÊN 36 (BÙ TỐC ĐỘ BẮN)
                             target.hp -= 36; 
                             b.currentReload = b.reloadTime; 
                         } else if (b.type === 'BALLISTA') { 
@@ -730,7 +729,6 @@
                     b.currentReload = b.reloadTime; 
                     let target = enemies[0]; 
                     tracers.push({sx: b.cx, sy: b.cy, tx: target.x, ty: target.y, life: 0.15, maxLife: 0.15, type: 'PROJ_BUNKER'}); 
-                    // BUNKER DAMAGE TĂNG LÊN 70
                     target.hp -= 70; 
                 } 
             }
@@ -1012,7 +1010,7 @@
                 ctx.restore();
             }
         } 
-        // 2. ARCHER TOWER
+        // 2. ARCHER TOWER (3x3 Ô)
         else if (b.type === 'ARCHER_TOWER') {
             let baseImg = loadedImages['ARCHER_BASE'];
             let archerImg = loadedImages['U_ARCHER'];
@@ -1048,7 +1046,7 @@
                 ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
             }
         }
-        // 4. MAGE TOWER (CASTLE 6x4 Ô)
+        // 4. MAGE TOWER (CASTLE 6x4 Ô - PHÁP SƯ DỊCH LÊN TRÊN VÀ LỆCH PHẢI)
         else if (b.type === 'MAGE_TOWER') {
             let baseImg = loadedImages['CASTLE_BASE'];
             let mageImg = loadedImages['U_MAGE_01'];
@@ -1061,9 +1059,9 @@
                 ctx.fillRect(px, py - offsetY, targetW, targetH); 
             }
             
-            // Dịch pháp sư lên đỉnh tháp phía sau (trừ sâu hơn trục Y)
-            let staffX = px + targetW / 2;
-            let staffY = py - offsetY + 6; // Đặt đứng ngay trên lối đi tường sau
+            // Dịch pháp sư lên trên và lệch phải (+10 X, -6 Y)
+            let staffX = px + targetW / 2 + 10;
+            let staffY = py - offsetY - 6;
 
             if (mageImg && mageImg.complete && mageImg.naturalWidth !== 0) {
                 ctx.save();
@@ -1151,6 +1149,7 @@
         ctx.closePath();
     }
 
+    // CHỮ READY DỜI LÊN NGAY DƯỚI CHÂN PHÁP SƯ ĐỐI VỚI MAGE TOWER
     function drawCooldownOrReadyUI(b, px, py, targetH, offsetY) {
         if (b.team !== 0 || gamePhase !== 'COMBAT') return;
         const targetTypes = ['MAGE_TOWER', 'TREBUCHET', 'JAVELIN_HUT', 'CYCLOP_CAVE'];
@@ -1204,27 +1203,35 @@
             ctx.restore();
         } else if (isReady) {
             ctx.save();
+            
+            // Riêng Castle thì đưa chữ READY lên ngay dưới chân pháp sư
+            let textX = centerX;
             let textY = py + (b.h * C) + 9;
+            if (b.type === 'MAGE_TOWER') {
+                textX = px + (b.w * C) / 2 + 10;
+                textY = py - offsetY + 24; 
+            }
+
             ctx.font = 'bold 9px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
             let textW = ctx.measureText("READY").width + 8;
-            ctx.fillStyle = 'rgba(26, 21, 16, 0.8)';
-            drawFallbackRoundedRect(ctx, centerX - textW/2, textY - 6, textW, 12, 3);
+            ctx.fillStyle = 'rgba(26, 21, 16, 0.85)';
+            drawFallbackRoundedRect(ctx, textX - textW/2, textY - 6, textW, 12, 3);
             ctx.fill();
             ctx.strokeStyle = '#69f0ae';
             ctx.lineWidth = 1;
             ctx.stroke();
 
             ctx.fillStyle = '#69f0ae';
-            ctx.fillText("READY", centerX, textY);
+            ctx.fillText("READY", textX, textY);
             ctx.restore();
         }
     }
 
     function drawWorld() {
-        // 1. VIỀN RÌA ĐẢO: Đổi thành màu cát biển (#e4d59e)
+        // RÌA MÀU CÁT BIỂN
         ctx.fillStyle = '#e4d59e'; 
         ctx.fillRect(0, ENEMY_Y_START * C, W * C, ISLAND_H * C); 
         ctx.fillRect(0, PLAYER_Y_START * C, W * C, ISLAND_H * C);
@@ -1233,7 +1240,7 @@
         ctx.fillStyle = '#4fc3f7'; 
         ctx.fillRect(0, SEA_Y_START * C, W * C, SEA_H * C);   
 
-        // 2. MẶT CỎ ĐẢO BÊN TRONG: Dùng màu xanh nhạt (#8bc34a)
+        // MẶT ĐẢO BÊN TRONG MÀU XANH NHẠT
         ctx.fillStyle = '#8bc34a'; 
         ctx.fillRect(2 * C, ENEMY_Y_START * C + 2 * C, (W - 4) * C, (ISLAND_H - 4) * C); 
         ctx.fillRect(2 * C, PLAYER_Y_START * C + 2 * C, (W - 4) * C, (ISLAND_H - 4) * C);
@@ -1272,7 +1279,6 @@
             ctx.restore();
         }
 
-        // VẼ 3 CÂY MỖI BÊN BẰNG ẢNH Tree_Pine_A.png
         terrainTrees.forEach(t => { 
             let tx = t.gx * C; 
             let ty = t.gy * C; 
@@ -1446,6 +1452,7 @@
             }
         });
 
+        // ĐẠN MAGE TO 150% + PHẬP PHỒNG
         mortars.forEach(m => { 
             if (!isHiddenInFog(m.x, m.y, m.team)) { 
                 let img = loadedImages['U_Mage_01_bullet'];
@@ -1465,6 +1472,7 @@
             } 
         }); 
 
+        // ĐẠN TREBUCHET TO 150% + PHẬP PHỒNG
         missiles.forEach(m => { 
             if (!isHiddenInFog(m.x, m.y, m.team)) { 
                 let img = loadedImages['PROJ_TREBUCHET'];
@@ -1486,7 +1494,7 @@
             } 
         }); 
 
-        // VẼ BALLOON KÈM BLOB SHADOW DƯỚI ĐẤT VÀ KHÔNG BỊ ÉP SIZE
+        // BALLOON TO 72PX KÈM BLOB SHADOW
         porters.forEach(p => {
             if (isHiddenInFog(p.x, p.y, p.team)) return;
             let img = loadedImages['DIRIGIBLE'];
@@ -1497,16 +1505,16 @@
                 bHeight = bWidth * (img.naturalHeight / img.naturalWidth);
             }
 
-            // 1. BLOB SHADOW TRÊN MẶT ĐẤT
+            // BLOB SHADOW
             ctx.save();
-            ctx.translate(p.x, p.y + 35); // Bóng đổ lệch xuống dưới tạo độ cao
+            ctx.translate(p.x, p.y + 35);
             ctx.beginPath();
             ctx.ellipse(0, 0, bWidth * 0.38, bHeight * 0.18, 0, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
             ctx.fill();
             ctx.restore();
 
-            // 2. VẼ BALLOON BAY TRÊN CAO (GIỮ FORM THẲNG ĐỨNG)
+            // THÂN KHÍ CẦU
             ctx.save();
             ctx.translate(p.x, p.y);
             if (p.team === 1) {
