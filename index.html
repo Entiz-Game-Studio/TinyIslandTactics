@@ -102,7 +102,8 @@
         'PROJ_BALLISTA': 'assets/T_Ballista_Arrow.png',
         'PROJ_JAVELIN': 'assets/U_TrollJavelin_Javelin.png',
         'PROJ_BUNKER': 'assets/T_Bunker_Bullet.png',
-        'U_Mage_01_bullet': 'assets/U_Mage_01_bullet.png'
+        'U_Mage_01_bullet': 'assets/U_Mage_01_bullet.png',
+        'TREE': 'assets/Tree_Pine_A.png'
     };
     const loadedImages = {};
     function preloadAssets() {
@@ -114,31 +115,32 @@
     }
     preloadAssets();
 
-    // CẤU HÌNH BẢN ĐỒ: ĐẢO 20 Ô, BIỂN 14 Ô, TỔNG 54 Ô
+    // CẤU HÌNH BẢN ĐỒ: ĐẢO 20 Ô, BIỂN 10 Ô, TỔNG 50 Ô
     const C = 16; 
     const W = 36; 
     const ISLAND_H = 20; 
-    const SEA_H = 14; 
-    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 54
+    const SEA_H = 10; 
+    const TOTAL_H = ISLAND_H + SEA_H + ISLAND_H; // 50
     const ENEMY_Y_START = 0; 
     const SEA_Y_START = 20; 
-    const PLAYER_Y_START = 34; 
+    const PLAYER_Y_START = 30; 
     let fog = Array(W).fill().map(() => Array(TOTAL_H).fill(true));
     
     const UNIT_STATS = { CYCLOP: { buildTime: 30, maxCap: 1 }, TROLL_JAVELIN: { buildTime: 10, maxCap: 3 } };
     
+    // ĐỔI KÍCH THƯỚC BALLISTA THÀNH 3x3
     const STATS = {
         MAGE_TOWER:   { w: 6, h: 3, hp: 5000, reload: 20, atkRange: 0 }, 
         TREBUCHET:    { w: 3, h: 4, hp: 800, reload: 30, atkRange: 0 }, 
         ARCHER_TOWER: { w: 3, h: 2, hp: 1000, reload: 0.08, atkRange: 6 * C }, 
-        BALLISTA:     { w: 2, h: 2, hp: 1500, reload: 5, atkRange: 10 * C }, 
+        BALLISTA:     { w: 3, h: 3, hp: 1500, reload: 5, atkRange: 10 * C }, // 3x3 ô
         WATCHTOWER:   { w: 2, h: 2, hp: 2500, reload: 0.5, atkRange: 6 * C }, 
         JAVELIN_HUT:  { w: 3, h: 3, hp: 2000, reload: 0, atkRange: 0 }, 
         CYCLOP_CAVE:  { w: 4, h: 2, hp: 3000, reload: 0, atkRange: 0 } 
     };
 
-    // CAMERA & ZOOM ĐÚNG 55 Ô DỌC
-    const MAX_VISIBLE_V_CELLS = 55;
+    // ZOOM MẶC ĐỊNH BẰNG 46 Ô DỌC
+    const MAX_VISIBLE_V_CELLS = 46;
     let camX = (W * C) / 2; 
     let camY = (TOTAL_H * C) / 2; 
     let defaultZoom = 0.8;
@@ -313,7 +315,10 @@
     }
 
     function setupAIFullDefenses() {
-        buildings.push(new Building(15, 2, 'MAGE_TOWER', 1));
+        let aiCastleX = 2 + Math.floor(Math.random() * (W - 4 - STATS['MAGE_TOWER'].w));
+        let aiCastleY = ENEMY_Y_START + 2;
+        buildings.push(new Building(aiCastleX, aiCastleY, 'MAGE_TOWER', 1));
+
         let prepInventoryAI = { 
             ARCHER_TOWER: 5, 
             BALLISTA: 7, 
@@ -395,6 +400,7 @@
         }
     }
 
+    // ĐỘI HÌNH PHE TA: DÀN BALLISTA 3x3 ĐƯỢC CĂN CHỈNH KHOẢNG CÁCH HỢP LÝ
     function startPrepPhase() {
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
@@ -402,22 +408,24 @@
         gamePhase = 'PREP'; 
         prepTimer = 30;
 
-        buildings.push(new Building(15, 45, 'MAGE_TOWER', 0)); 
+        buildings.push(new Building(15, 39, 'MAGE_TOWER', 0)); 
         
-        let aamX = [4, 8, 12, 16, 20, 24, 28]; 
-        aamX.forEach(x => buildings.push(new Building(x, 36, 'BALLISTA', 0))); 
+        // 7 Ballista (3x3 ô) được xếp cách nhau 4 ô
+        let aamX = [3, 7, 11, 15, 19, 23, 27]; 
+        aamX.forEach(x => buildings.push(new Building(x, 32, 'BALLISTA', 0))); 
         
         let ciwsX = [5, 10, 15, 20, 25]; 
-        ciwsX.forEach(x => buildings.push(new Building(x, 39, 'ARCHER_TOWER', 0))); 
+        ciwsX.forEach(x => buildings.push(new Building(x, 35, 'ARCHER_TOWER', 0))); 
         
         let bunkerX = [6, 12, 18, 24]; 
-        bunkerX.forEach(x => buildings.push(new Building(x, 42, 'WATCHTOWER', 0)));
+        bunkerX.forEach(x => buildings.push(new Building(x, 38, 'WATCHTOWER', 0)));
         
-        buildings.push(new Building(8, 47, 'TREBUCHET', 0)); 
-        buildings.push(new Building(17, 48, 'TREBUCHET', 0)); 
-        buildings.push(new Building(26, 47, 'TREBUCHET', 0)); 
-        buildings.push(new Building(7, 50, 'JAVELIN_HUT', 0)); 
-        buildings.push(new Building(25, 50, 'CYCLOP_CAVE', 0)); 
+        buildings.push(new Building(8, 41, 'TREBUCHET', 0)); 
+        buildings.push(new Building(17, 42, 'TREBUCHET', 0)); 
+        buildings.push(new Building(26, 41, 'TREBUCHET', 0)); 
+        
+        buildings.push(new Building(7, 44, 'JAVELIN_HUT', 0)); 
+        buildings.push(new Building(25, 44, 'CYCLOP_CAVE', 0)); 
     }
 
     function startCombatPhase() {
@@ -819,8 +827,8 @@
                 let curY = m.y - m.z;
                 let dirX = (m.tx - m.sx) / (m.dist || 1);
                 let dirY = (m.ty - m.sy) / (m.dist || 1);
-                let trailOffsetX = -dirX * 14; 
-                let trailOffsetY = -dirY * 14;
+                let trailOffsetX = -dirX * 18; 
+                let trailOffsetY = -dirY * 18;
 
                 for (let k = 0; k < 2; k++) {
                     let purpleShades = ['#d500f9', '#aa00ff', '#ea80fc', '#7c4dff'];
@@ -848,7 +856,6 @@
         for (let i = missiles.length - 1; i >= 0; i--) { 
             let m = missiles[i]; 
 
-            // ĐẠN TREBUCHET PHE TA MỞ SƯƠNG MÙ XUNG QUANH VỊ TRÍ BAY (BÁN KÍNH 3 Ô)
             if (m.team === 0) {
                 revealFog(Math.floor(m.x / C), Math.floor(m.y / C), 3.0);
             }
@@ -856,8 +863,8 @@
             if (!isHiddenInFog(m.x, m.y, m.team)) {
                 let dirX = m.vx / (m.speed || 1);
                 let dirY = m.vy / (m.speed || 1);
-                let trailOffsetX = -dirX * 18; 
-                let trailOffsetY = -dirY * 18;
+                let trailOffsetX = -dirX * 22; 
+                let trailOffsetY = -dirY * 22;
 
                 for (let k = 0; k < 3; k++) {
                     let fireShades = ['#ff3d00', '#ff9100', '#ffea00', '#dd2c00'];
@@ -902,7 +909,6 @@
         updateButtonsUI();
     }
 
-    // NỔ ĐẠN VÀ TẠO VẾT CHÁY TRÒN MỜ DẦN TRONG 3S + MỞ SƯƠNG MÙ
     function triggerExplosion(gx, gy, px, py, shooterTeam, damageMultiplier, effectType = 'fire') {
         let radius = 4.5;
         let pColors = effectType === 'magic' ? ['#d500f9', '#aa00ff', '#ea80fc', '#7c4dff'] : ['#ff3d00', '#ff9100', '#ffea00', '#dd2c00'];
@@ -952,13 +958,13 @@
 
         let offsetY = targetH - (b.h * C);
 
-        // 1. BALLISTA
+        // 1. BALLISTA (SCALE BASE = 1.0, KHÍT 3x3 Ô)
         if (b.type === 'BALLISTA') {
             let baseImg = loadedImages['BALLISTA_BASE'];
             let topImg = loadedImages['BALLISTA_TOP'];
             let arrowImg = loadedImages['PROJ_BALLISTA'];
             
-            let scaleBase = 1.2;
+            let scaleBase = 1.0; // Đưa về scale 1.0 theo yêu cầu
             let baseW = targetW * scaleBase;
             let baseH = targetH * scaleBase;
             let baseOffsetX = (baseW - targetW) / 2;
@@ -979,10 +985,10 @@
                 let recoil = 0;
                 if (b.currentReload > b.reloadTime - 0.2) recoil = ((b.currentReload - (b.reloadTime - 0.2)) / 0.2) * 8; 
                 
-                ctx.drawImage(topImg, -targetW / 2, -targetH / 2 + recoil, targetW, targetH);
+                ctx.drawImage(topImg, -baseW / 2, -baseH / 2 + recoil, baseW, baseH);
                 
                 if (b.currentReload <= 0 && arrowImg && arrowImg.complete && arrowImg.naturalWidth !== 0) {
-                    ctx.drawImage(arrowImg, -4, -targetH / 2 + 2 + recoil, 8, 24);
+                    ctx.drawImage(arrowImg, -6, -baseH / 2 + 2 + recoil, 12, 30);
                 }
                 ctx.restore();
             }
@@ -1046,8 +1052,8 @@
                 ctx.drawImage(mageImg, -24, -30, 48, 48);
 
                 if (b.currentReload <= 0) {
-                    let pulse = 1 + Math.sin(Date.now() / 150) * 0.18;
-                    let bSize = 16 * pulse;
+                    let pulse = 1 + Math.sin(Date.now() / 150) * 0.2;
+                    let bSize = 24 * pulse; // Scale 150%
                     let headX = 6, headY = -18;
                     if (bulletImg && bulletImg.complete && bulletImg.naturalWidth !== 0) {
                         ctx.drawImage(bulletImg, headX - bSize/2, headY - bSize/2, bSize, bSize);
@@ -1158,17 +1164,17 @@
             ctx.save();
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(26, 21, 16, 0.75)';
+            ctx.fillStyle = 'rgba(20, 15, 10, 0.75)';
             ctx.fill();
-            ctx.strokeStyle = '#fbc02d';
-            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.8;
             ctx.stroke();
 
             ctx.beginPath();
             ctx.moveTo(centerX, centerY);
             ctx.arc(centerX, centerY, radius - 1.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress, false);
             ctx.closePath();
-            ctx.fillStyle = 'rgba(251, 192, 45, 0.65)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.fill();
 
             ctx.restore();
@@ -1232,7 +1238,20 @@
             ctx.restore();
         }
 
-        ctx.fillStyle = '#33691e'; terrainTrees.forEach(t => { let tx = t.gx * C + C/2; let ty = t.gy * C + C/2; ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI*2); ctx.fill(); });
+        // VẼ ẢNH CÂY THÔNG Tree_Pine_A.png
+        terrainTrees.forEach(t => { 
+            let tx = t.gx * C; 
+            let ty = t.gy * C; 
+            let treeImg = loadedImages['TREE'];
+            if (treeImg && treeImg.complete && treeImg.naturalWidth !== 0) {
+                ctx.drawImage(treeImg, tx - 4, ty - 12, 24, 28);
+            } else {
+                ctx.fillStyle = '#33691e'; 
+                ctx.beginPath(); 
+                ctx.arc(tx + C/2, ty + C/2, 6, 0, Math.PI*2); 
+                ctx.fill(); 
+            }
+        });
         
         for(let x=0; x<W; x++) { for(let y=0; y<TOTAL_H; y++) { if(fog[x] && fog[x][y]) { ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(x*C, y*C, C, C); } } } 
 
@@ -1393,11 +1412,12 @@
             }
         });
 
+        // ĐẠN MAGE TO 150% + PHẬP PHỒNG XOAY MA THUẬT KHI BAY
         mortars.forEach(m => { 
             if (!isHiddenInFog(m.x, m.y, m.team)) { 
                 let img = loadedImages['U_Mage_01_bullet'];
-                let pulse = 1 + Math.sin(Date.now() / 80) * 0.2;
-                let renderSize = 16 * pulse;
+                let pulse = 1 + Math.sin(Date.now() / 80) * 0.22;
+                let renderSize = 24 * pulse; // Tăng 150%
 
                 if (img && img.complete && img.naturalWidth !== 0) {
                     ctx.save();
@@ -1412,24 +1432,48 @@
             } 
         }); 
 
+        // ĐẠN TREBUCHET TO 150% + PHẬP PHỒNG KHI BAY
         missiles.forEach(m => { 
             if (!isHiddenInFog(m.x, m.y, m.team)) { 
                 let img = loadedImages['PROJ_TREBUCHET'];
+                let pulse = 1 + Math.sin(Date.now() / 90) * 0.18;
+                let renderSize = 30 * pulse; // Tăng 150%
+
                 if (img && img.complete && img.naturalWidth !== 0) {
-                    ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(m.angle + Math.PI/2);
-                    ctx.drawImage(img, -10, -10, 20, 20);
+                    ctx.save(); 
+                    ctx.translate(m.x, m.y); 
+                    ctx.rotate(m.angle + Math.PI/2);
+                    ctx.drawImage(img, -renderSize/2, -renderSize/2, renderSize, renderSize);
                     ctx.restore();
                 } else {
-                    ctx.fillStyle = '#ff3d00'; ctx.beginPath(); ctx.arc(m.x, m.y, 6, 0, Math.PI*2); ctx.fill(); 
+                    ctx.fillStyle = '#ff3d00'; 
+                    ctx.beginPath(); 
+                    ctx.arc(m.x, m.y, renderSize / 3, 0, Math.PI*2); 
+                    ctx.fill(); 
                 }
             } 
         }); 
 
+        // BALLOON TO 150% (60px) & KHÍ CẦU AI GIỮ THẲNG KHÔNG BỊ LỘN NGƯỢC
         porters.forEach(p => {
             if (isHiddenInFog(p.x, p.y, p.team)) return;
             let img = loadedImages['DIRIGIBLE'];
-            if (img && img.complete && img.naturalWidth !== 0) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle + Math.PI/2); ctx.drawImage(img, -20, -20, 40, 40); ctx.restore(); }
-            else { ctx.fillStyle = '#ffb300'; ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI*2); ctx.fill(); } 
+            let balloonSize = 60; // Tăng 150%
+
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            if (p.team === 1) {
+                ctx.filter = 'sepia(1) saturate(5) hue-rotate(310deg)';
+            }
+            if (img && img.complete && img.naturalWidth !== 0) { 
+                ctx.drawImage(img, -balloonSize/2, -balloonSize/2, balloonSize, balloonSize); 
+            } else { 
+                ctx.fillStyle = p.team === 0 ? '#ffb300' : '#d32f2f'; 
+                ctx.beginPath(); 
+                ctx.arc(0, 0, balloonSize/3, 0, Math.PI*2); 
+                ctx.fill(); 
+            }
+            ctx.restore();
         });
 
         interceptors.forEach(inc => { 
@@ -1437,7 +1481,7 @@
                 let img = loadedImages['PROJ_BALLISTA'];
                 if (img && img.complete && img.naturalWidth !== 0) {
                     ctx.save(); ctx.translate(inc.x, inc.y); ctx.rotate(inc.angle + Math.PI/2);
-                    ctx.drawImage(img, -4, -12, 8, 24); 
+                    ctx.drawImage(img, -6, -15, 12, 30); 
                     ctx.restore();
                 } else {
                     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(inc.x, inc.y, 2, 0, Math.PI*2); ctx.fill(); 
