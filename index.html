@@ -83,7 +83,13 @@
     const ctx = canvas.getContext('2d');
     const gameArea = document.getElementById('gameArea');
 
-    // --- HỆ THỐNG ÂM THANH WEB AUDIO SYNTHESIZER ---
+    // --- HỆ THỐNG ÂM THANH & HAPTIC FEEDBACK ---
+    function triggerHaptic(pattern = 40) {
+        if ("vibrate" in navigator) {
+            try { navigator.vibrate(pattern); } catch(e) {}
+        }
+    }
+
     const AudioEngine = {
         ctx: null,
         init() {
@@ -196,6 +202,14 @@
     };
 
     let hasTriggeredWarHorn = false;
+    function notifyPlayerAttacked() {
+        if (!hasTriggeredWarHorn && gamePhase === 'COMBAT') {
+            hasTriggeredWarHorn = true;
+            AudioEngine.playWarHorn();
+            triggerHaptic([120, 60, 120]);
+            showTextMsg("🚨 BASE UNDER ATTACK!");
+        }
+    }
 
     // --- SHAKE CAMERA ENGINE ---
     let shakeDuration = 0;
@@ -269,10 +283,7 @@
     let defaultZoom = 0.8;
     let camZoom = defaultZoom; 
 
-    function getMinZoom() {
-        return defaultZoom * 0.85;
-    }
-
+    function getMinZoom() { return defaultZoom * 0.85; }
     function clampCamY(y) {
         const maxPanOffset = 2 * C;
         return Math.max(CENTER_CAM_Y - maxPanOffset, Math.min(CENTER_CAM_Y + maxPanOffset, y));
@@ -375,14 +386,6 @@
     function isFogged(gx, gy) { if (isNaN(gx) || isNaN(gy) || gx < 0 || gx >= W || gy < 0 || gy >= TOTAL_H) return false; return fog[gx] && fog[gx][gy] !== undefined ? fog[gx][gy] : false; }
     function isHiddenInFog(x, y, team) { return team === 0 ? false : isFogged(Math.floor(x / C), Math.floor(y / C)); }
     function updateStatsUI() { if (gamePhase === 'COMBAT') { let elAcc = document.getElementById('accTxt'); if (elAcc) elAcc.innerText = (playerAamHitRate * 100).toFixed(0); } }
-
-    function notifyPlayerAttacked() {
-        if (!hasTriggeredWarHorn && gamePhase === 'COMBAT') {
-            hasTriggeredWarHorn = true;
-            AudioEngine.playWarHorn();
-            showTextMsg("🚨 BASE UNDER ATTACK!");
-        }
-    }
 
     let terrainTrees = [
         { gx: 2, gy: ENEMY_Y_START + 3 },
@@ -562,6 +565,7 @@
 
     function startPrepPhase() {
         AudioEngine.init();
+        triggerHaptic(30);
         document.getElementById('btnBigReady').style.display = 'none'; 
         document.getElementById('btnSaveFormation').style.display = 'flex'; 
         showTextMsg("DRAG AND DROP TO DEPLOY"); 
@@ -590,6 +594,7 @@
 
     function startCombatPhase() {
         AudioEngine.init();
+        triggerHaptic(50);
         draggingBuilding = null;
         gamePhase = 'COMBAT'; 
         document.getElementById('btnSaveFormation').style.display = 'none';
@@ -611,6 +616,7 @@
 
     function selectGlobalAttack(type) {
         if (gamePhase !== 'COMBAT' || isDrafting) return;
+        triggerHaptic(20);
         selectedEntity = null; 
         globalAttackMode = type;
         if (type === 'MAGE_TOWER') showTextMsg(`🔥 Mage selected. Tap Enemy Island to cast Arcane Burst!`); 
@@ -785,7 +791,6 @@
     }
 
     function updateLogic(dt) {
-        // CẬP NHẬT SHAKE CAM
         if (shakeDuration > 0) {
             shakeDuration -= dt;
             shakeOffsetX = (Math.random() - 0.5) * shakeIntensity * 2;
@@ -814,12 +819,13 @@
                 let scorchRadius = Math.max(b.w, b.h) * C * 0.75;
                 addScorchMark(b.cx, b.cy, scorchRadius, 'rgba(15, 10, 5, 0.75)');
                 
-                // RUNG MÀN HÌNH THEO TẦNG CÔNG TRÌNH (CASTLE RUNG MẠNH NHẤT)
                 if (b.type === 'MAGE_TOWER') {
-                    triggerShake(28, 1.0); // Castle rung kịch liệt
+                    triggerShake(28, 1.0);
+                    triggerHaptic([200, 100, 300]);
                     AudioEngine.playExplosion(true);
                 } else {
-                    triggerShake(12, 0.45); // Công trình khác rung mạnh
+                    triggerShake(12, 0.45);
+                    triggerHaptic(120);
                     AudioEngine.playExplosion(false);
                 }
 
@@ -1109,8 +1115,8 @@
     function triggerExplosion(gx, gy, px, py, shooterTeam, damageMultiplier, effectType = 'fire') {
         let radius = 4.5;
         
-        // RUNG MÀN HÌNH KHI ĐẠN TREBUCHET HOẶC MAGE NỔ
         triggerShake(6, 0.25);
+        triggerHaptic(60);
         AudioEngine.playExplosion(false);
 
         let pColors = effectType === 'magic' ? ['#d500f9', '#aa00ff', '#ea80fc', '#7c4dff'] : ['#ff3d00', '#ff9100', '#ffea00', '#dd2c00'];
@@ -1166,7 +1172,7 @@
 
         let offsetY = targetH - (b.h * C);
 
-        // 1. BALLISTA (3x3 Ô)
+        // 1. BALLISTA
         if (b.type === 'BALLISTA') {
             let baseImg = loadedImages['BALLISTA_BASE'];
             let topImg = loadedImages['BALLISTA_TOP'];
@@ -1201,7 +1207,7 @@
                 ctx.restore();
             }
         } 
-        // 2. ARCHER TOWER (3x3 Ô)
+        // 2. ARCHER TOWER
         else if (b.type === 'ARCHER_TOWER') {
             let baseImg = loadedImages['ARCHER_BASE'];
             let archerImg = loadedImages['U_ARCHER'];
@@ -1226,7 +1232,7 @@
                 });
             }
         }
-        // 3. WATCHTOWER / BUNKER (3x3 Ô)
+        // 3. WATCHTOWER / BUNKER
         else if (b.type === 'WATCHTOWER') {
             if (img && img.complete && img.naturalWidth !== 0) {
                 ctx.drawImage(img, px, py - offsetY, targetW, targetH);
@@ -1237,7 +1243,7 @@
                 ctx.fillText(b.type, px + targetW / 2, py + (b.h * C) / 2 - offsetY);
             }
         }
-        // 4. MAGE TOWER (CASTLE 6x4 Ô)
+        // 4. MAGE TOWER
         else if (b.type === 'MAGE_TOWER') {
             let baseImg = loadedImages['CASTLE_BASE'];
             let mageImg = loadedImages['U_MAGE_01'];
@@ -1676,7 +1682,6 @@
             } 
         }); 
 
-        // BALLOON: BÓNG NHỎ ĐI 1 NỬA VÀ ĐẨY XA XUỐNG DƯỚI THÊM (+52px)
         porters.forEach(p => {
             if (isHiddenInFog(p.x, p.y, p.team)) return;
             let img = loadedImages['DIRIGIBLE'];
@@ -1687,7 +1692,7 @@
                 bHeight = bWidth * (img.naturalHeight / img.naturalWidth);
             }
 
-            // BLOB SHADOW NHỎ GỌN
+            // BLOB SHADOW NHỎ GỌN, ĐẨY XA XUỐNG DƯỚI (+52px)
             ctx.save();
             ctx.translate(p.x, p.y + 52);
             ctx.beginPath();
@@ -1696,7 +1701,6 @@
             ctx.fill();
             ctx.restore();
 
-            // THÂN KHÍ CẦU
             ctx.save();
             ctx.translate(p.x, p.y);
             if (p.team === 1) {
